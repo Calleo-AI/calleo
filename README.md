@@ -1,15 +1,14 @@
 # Calleo
 
-*Calleo* — Latin for "I am clever." Give your school's website a mind.
+*Calleo* — Latin for "I am clever." Gives your school or NGO website a mind.
 
-Calleo is a self-hosted RAG chatbot template for school websites. It crawls
-your school's site into a ChromaDB vector database, answers prospective-family
+Calleo is a self-hosted RAG chatbot template for your websites. It crawls
+your site into a ChromaDB vector database, answers user
 questions through an embeddable chat widget (7 languages), and ships with an
 analytics dashboard, automated faithfulness scoring, and a weekly analysis
 agent that emails a trend report.
 
-Built and battle-tested in production on a real school's website; released
-under the MIT license.
+Built by students from Crescent School, Toronto, alongside the support from faculty and staff. It is the first of our opensource projects with many to come (hopefully). It is battle-tested in production on Crescent School's website; released under the MIT license.
 
 ## Architecture
 
