@@ -4,7 +4,7 @@
 
 Calleo is a self-hosted RAG chatbot template for schools and NGOs. It crawls
 your organization's site into a ChromaDB vector database, answers visitor
-questions through an embeddable chat widget (7 languages), and ships with an
+questions through an embeddable chat widget (multi languages), and ships with an
 analytics dashboard, automated faithfulness scoring, and a weekly analysis
 agent that emails a trend report.
 
@@ -13,10 +13,7 @@ website, Calleo can answer questions about it — admissions and programs for a
 school, or services, eligibility, and donation info for an NGO. Point it at
 your sitemap and fill in two config files.
 
-Built by students at Crescent School, Toronto, with the support of faculty and
-staff. It is the first of our open-source projects, with many more to come (we
-hope). Battle-tested in production on Crescent School's website; released under
-the MIT license.
+Built by students at Crescent School, Toronto, with the support of faculty staff and the IT department. It is the first of our open-source projects, with many more to come (we hope). Battle-tested in production on Crescent School's website; released under the MIT license.
 
 ## Architecture
 
