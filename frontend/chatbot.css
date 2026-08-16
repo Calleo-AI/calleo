@@ -1,0 +1,1266 @@
+/* ---------------------------------------------------------------------------
+   EDIT ME — brand colors for your school.
+   The widget ships with a neutral green; swap these for your school's palette.
+   --brand-primary-rgb must be the R,G,B of --brand-primary (used for tints).
+   The toggler sphere uses the light->deep ramp for its 3D shading.
+--------------------------------------------------------------------------- */
+:root {
+    --brand-primary: #1f6f54;            /* buttons, links, accents */
+    --brand-primary-dark: #14503c;       /* hover / pressed states */
+    --brand-primary-rgb: 31, 111, 84;    /* --brand-primary as R,G,B */
+    --brand-sphere-highlight: #4fbc94;   /* toggler sphere: top highlight */
+    --brand-sphere-light: #2f9a74;       /* toggler sphere: upper mid */
+    --brand-sphere-mid: #1f7d5c;         /* toggler sphere: lower mid */
+    --brand-sphere-deep: #14503c;        /* toggler sphere: shadow edge */
+}
+
+@import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700&display=swap');
+
+/* Position the chat button in the bottom right corner.
+   IMPORTANT: the host iframe clips the button (overflow:hidden), and the live
+   Blackbaud embed can be as narrow as 60px. The sphere is sized + guttered so
+   the WHOLE circle (plus its resting glow) fits inside a 60px-wide iframe with
+   clearance on every side — so it can never be cut off on the left again,
+   regardless of the embed width the host page uses. A 48px sphere at a 6px
+   right gutter leaves 6px of clearance on each side at 60px (and ~46px of
+   invisible transparent space on the left at the standard 100px embed). */
+.chatbot-toggler {
+    position: absolute;
+    bottom: 75px;
+    right: 6px;
+    outline: none;
+    border: none;
+    height: 48px;
+    width: 48px;
+    display: flex;
+    cursor: pointer;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    /* Spherical shading: soft top-left highlight falling to the deep brand green */
+    background: radial-gradient(circle at 35% 30%,
+        var(--brand-sphere-highlight) 0%,
+        var(--brand-sphere-light) 34%,
+        var(--brand-sphere-mid) 64%,
+        var(--brand-sphere-deep) 100%);
+    transition: transform 0.2s ease;
+    z-index: 9999;
+    -webkit-tap-highlight-color: transparent;
+    /* inset highlight/shadow give the 3D sphere; the tight green ring is a
+       persistent glow that stays inside the 6px clearance */
+    box-shadow:
+        inset 0 2px 3px rgba(255, 255, 255, 0.40),
+        inset 0 -3px 5px rgba(0, 0, 0, 0.28),
+        0 3px 6px rgba(0, 0, 0, 0.18),
+        0 0 4px 0 rgba(var(--brand-glow-rgb), 0.45);
+}
+
+.chatbot-toggler:hover {
+    transform: translateY(-1px) scale(1.06);
+}
+
+.chatbot-toggler:active {
+    transform: scale(0.95);
+}
+
+/* Attention-grabbing glow on page load: pulses three times, then settles to
+   the normal icon. The 0%/100% keyframes match the toggler's resting
+   box-shadow so the hand-off after the 3rd pulse is seamless. The peak halo is
+   kept modest so it stays close to the sphere; on a very narrow (60px) embed
+   the outer ring of the pulse is briefly clipped by the iframe edge, but the
+   resting sphere always renders complete. */
+.chatbot-toggler.glowing {
+    animation: chatTogglerGlow 1.8s ease-in-out 3;
+}
+
+@keyframes chatTogglerGlow {
+    0%, 100% {
+        box-shadow:
+            inset 0 2px 3px rgba(255, 255, 255, 0.40),
+            inset 0 -3px 5px rgba(0, 0, 0, 0.28),
+            0 3px 6px rgba(0, 0, 0, 0.18),
+            0 0 4px 0 rgba(var(--brand-glow-rgb), 0.45);
+    }
+    50% {
+        box-shadow:
+            inset 0 2px 3px rgba(255, 255, 255, 0.40),
+            inset 0 -3px 5px rgba(0, 0, 0, 0.28),
+            0 3px 6px rgba(0, 0, 0, 0.18),
+            0 0 12px 3px rgba(var(--brand-glow-rgb), 0.95),
+            0 0 22px 7px rgba(var(--brand-glow-rgb), 0.45);
+    }
+}
+
+/* The Chat Window */
+.chatbot {
+    position: absolute;
+    /* The chat panel is pinned to the iframe's RIGHT edge and given an
+       explicit pixel width (--chat-w). This decouples the panel's size from
+       the iframe width, so when the sidebar opens and the parent page widens
+       the iframe by 200px on the left, the panel does NOT resize or reflow —
+       it stays exactly where it is while the sidebar slides out into the
+       newly-revealed space on the left, like a card emerging from behind it.
+       --chat-w is synced in chatbot.js from the iframe viewport and is held
+       constant during the sidebar open/close animation. */
+    top: 15px;
+    right: 5px;
+    bottom: 65px;
+    left: auto;
+    width: var(--chat-w, 420px);
+    background: #fff;
+    border-radius: 15px;
+    overflow: hidden;
+    opacity: 0;
+    pointer-events: none;
+    transform: scale(0.5);
+    transform-origin: bottom right;
+    box-shadow:
+        0 2px 8px rgba(0, 0, 0, 0.06),
+        0 8px 24px rgba(0, 0, 0, 0.08),
+        0 24px 48px rgba(0, 0, 0, 0.10),
+        0 32px 64px -48px rgba(0, 0, 0, 0.5);
+    transition: opacity 0.1s ease, transform 0.1s ease, border-radius 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+}
+
+body.show-chatbot .chatbot {
+    opacity: 1;
+    pointer-events: auto;
+    transform: scale(1);
+}
+
+/* Header Styles - iOS minimal */
+.chatbot header {
+    padding: 16px 12px 12px;
+    min-height: 58px;
+    position: relative;
+    text-align: center;
+    color: #1c1c1e;
+    background: #ffffff;
+    flex-shrink: 0;
+    cursor: grab;
+    user-select: none;
+    /* Tracks the chat panel width so the sidebar can push it without hardcoding. */
+    width: var(--chat-w, 420px);
+    max-width: 100%;
+    margin-left: auto;
+    z-index: 3;
+}
+
+.chatbot header:active {
+    cursor: grabbing;
+}
+
+/* Draggable drag handle bar — small gray pill at the top of the header */
+.chatbot header::before {
+    content: '';
+    position: absolute;
+    top: 4px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 32px;
+    height: 3px;
+    border-radius: 2px;
+    background: #d0d0d0;
+    pointer-events: none;
+    transition: background 0.2s ease;
+}
+
+.chatbot header:hover::before {
+    background: #b0b0b0;
+}
+
+/* Close Button - minimalist dark grey, hover becomes red bubble */
+.chatbot header .close-btn {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    cursor: pointer;
+    display: none;
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+    background: transparent;
+    color: #3c3c43;
+    font-size: 1.5rem;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.22s ease, color 0.22s ease;
+}
+
+.chatbot header .close-btn:hover {
+    background: #d32f2f;
+    color: #ffffff;
+}
+
+body.show-chatbot .chatbot header .close-btn {
+    display: flex;
+}
+
+/* New Chat Button - iOS style compose icon, matches close-btn styling */
+.chatbot header .new-chat-btn {
+    position: absolute;
+    left: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    cursor: pointer;
+    display: none;
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+    background: transparent;
+    color: #3c3c43;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.22s ease, color 0.22s ease;
+}
+
+.chatbot header .new-chat-btn:hover {
+    background: var(--brand-primary);
+    color: #ffffff;
+}
+
+.chatbot header .new-chat-btn svg {
+    width: 26px;
+    height: 26px;
+}
+
+body.show-chatbot .chatbot header .new-chat-btn {
+    display: flex;
+}
+
+/* Language Selector Dropdown */
+.chatbot header .lang-select {
+    position: absolute;
+    right: 56px;
+    top: 50%;
+    transform: translateY(-50%);
+    display: none;
+    border: 1.5px solid var(--brand-primary);
+    border-radius: 10px;
+    background: transparent;
+    color: var(--brand-primary);
+    font-size: 1.08rem;
+    font-family: 'Tajawal', sans-serif;
+    font-weight: 600;
+    padding: 2px 8px;
+    cursor: pointer;
+    outline: none;
+    height: 36px;
+    max-width: 126px;
+    transition: background 0.22s ease, color 0.22s ease;
+}
+
+.chatbot header .lang-select:hover,
+.chatbot header .lang-select:focus {
+    background: var(--brand-primary);
+    color: #ffffff;
+}
+
+body.show-chatbot .chatbot header .lang-select {
+    display: block;
+}
+
+/* Welcome Screen - large bold greeting shown before first message */
+@keyframes welcomeFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(12px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.welcome-screen {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: flex-start;
+    padding: 48px 28px 20px;
+    text-align: left;
+    opacity: 0;
+}
+
+.welcome-screen.fade-in {
+    animation: welcomeFadeIn 0.5s ease-out forwards;
+}
+
+.welcome-screen .welcome-text {
+    font-family: 'Tajawal', sans-serif;
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: #1c1c1e;
+    line-height: 1.35;
+    margin: 0;
+    max-width: 340px;
+}
+
+.welcome-screen .welcome-tagline {
+    white-space: nowrap;
+}
+
+.welcome-screen.hidden {
+    display: none;
+}
+
+/* Contact line below the welcome greeting */
+.welcome-contact {
+    font-family: 'Tajawal', sans-serif;
+    font-size: 0.82rem;
+    color: #666;
+    margin: 14px 0 0;
+    max-width: 340px;
+    line-height: 1.5;
+}
+
+.contact-email {
+    color: var(--brand-primary);
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.contact-email:hover {
+    text-decoration: underline;
+}
+
+/* Wave hand emoji animation */
+@keyframes wave-hand {
+    0%   { transform: rotate(0deg); }
+    15%  { transform: rotate(20deg); }
+    35%  { transform: rotate(-10deg); }
+    55%  { transform: rotate(18deg); }
+    75%  { transform: rotate(-6deg); }
+    100% { transform: rotate(0deg); }
+}
+
+.wave-emoji {
+    display: inline-block;
+    transform-origin: 70% 70%;
+}
+
+.wave-emoji.waving {
+    animation: wave-hand 1.2s ease-in-out 1;
+    animation-delay: 2s;
+}
+
+/* Gradient Wave — visible only when welcome screen is shown */
+@keyframes waveFloat1 {
+    0%   { transform: translateX(0)     translateY(0)    scaleY(1);    }
+    20%  { transform: translateX(-12%)  translateY(-4%)  scaleY(1.12); }
+    40%  { transform: translateX(-4%)   translateY(3%)   scaleY(0.90); }
+    60%  { transform: translateX(8%)    translateY(-3%)  scaleY(1.10); }
+    80%  { transform: translateX(11%)   translateY(2%)   scaleY(0.94); }
+    100% { transform: translateX(0)     translateY(0)    scaleY(1);    }
+}
+
+@keyframes waveFloat2 {
+    0%   { transform: translateX(0)     translateY(0)    scaleY(1);    }
+    20%  { transform: translateX(9%)    translateY(3%)   scaleY(0.92); }
+    40%  { transform: translateX(-7%)   translateY(-3%)  scaleY(1.13); }
+    60%  { transform: translateX(-11%)  translateY(2%)   scaleY(0.95); }
+    80%  { transform: translateX(6%)    translateY(-2%)  scaleY(1.08); }
+    100% { transform: translateX(0)     translateY(0)    scaleY(1);    }
+}
+
+.gradient-wave {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 55%;
+    pointer-events: none;
+    overflow: hidden;
+    z-index: 2;
+    opacity: 0;
+    transition: opacity 1s ease;
+}
+
+/* Show gradient only when welcome screen is visible (not hidden) */
+.chatbot:has(.welcome-screen:not(.hidden)) .gradient-wave {
+    opacity: 1;
+}
+
+/* Primary wave layer — larger, slower.
+   bottom is offset below 0 so the keyframes' upward translateY (-4%)
+   never exposes the chatbot's white background. */
+.gradient-wave::before {
+    content: '';
+    position: absolute;
+    bottom: -6%;
+    left: -30%;
+    width: 160%;
+    height: 100%;
+    background: radial-gradient(
+        ellipse at 50% 105%,
+        rgba(var(--brand-primary-rgb), 0.30) 0%,
+        rgba(var(--brand-primary-rgb), 0.19) 38%,
+        transparent 62%
+    );
+    animation: waveFloat1 7s ease-in-out infinite;
+}
+
+/* Secondary wave layer — slightly smaller, different speed for depth */
+.gradient-wave::after {
+    content: '';
+    position: absolute;
+    bottom: -6%;
+    left: -20%;
+    width: 140%;
+    height: 80%;
+    background: radial-gradient(
+        ellipse at 50% 110%,
+        rgba(var(--brand-primary-rgb), 0.23) 0%,
+        rgba(var(--brand-primary-rgb), 0.15) 42%,
+        transparent 65%
+    );
+    animation: waveFloat2 10s ease-in-out infinite;
+}
+
+/* Chatbox */
+.chatbot .chatbox {
+    position: relative;
+    overflow-y: auto;
+    flex: 1;
+    /* Take up remaining space */
+    height: auto;
+    /* Reset fixed height */
+    padding: 15px 10px 118px;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(0, 0, 0, 0.15) transparent;
+    /* Fade messages out behind the input bar so they don't peek
+       below it while the user scrolls. */
+    -webkit-mask-image: linear-gradient(
+        to bottom,
+        black 0,
+        black calc(100% - 100px),
+        transparent calc(100% - 20px)
+    );
+    mask-image: linear-gradient(
+        to bottom,
+        black 0,
+        black calc(100% - 100px),
+        transparent calc(100% - 20px)
+    );
+}
+
+.chatbot .chatbox::-webkit-scrollbar {
+    width: 4px;
+    background-color: transparent;
+}
+
+.chatbot .chatbox::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.chatbot .chatbox::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.15);
+    border-radius: 4px;
+}
+
+.chatbot .chatbox::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 0, 0, 0.3);
+}
+
+.chatbox .chat {
+    display: flex;
+    list-style: none;
+}
+
+/* Incoming Message (Bot) Styling — left-aligned */
+.chatbox .incoming {
+    display: flex;
+    align-items: flex-end;
+    justify-content: flex-start;
+    margin: 6px 0;
+}
+
+.chatbox .incoming p {
+    background: #f0f0f0;
+    color: #000;
+    /* Sharp bottom-left corner = "tail" pointing left */
+    border-radius: 18px 18px 18px 4px;
+    max-width: 75%;
+    padding: 10px 14px;
+    font-size: 0.95rem;
+    font-family: 'Tajawal', sans-serif;
+    margin: 0;
+    line-height: 1.5;
+    word-break: break-word;
+}
+
+/* Outgoing Message (User) Styling — right-aligned */
+.chatbox .outgoing {
+    display: flex;
+    justify-content: flex-end;
+    margin: 6px 0;
+}
+
+.chatbox .outgoing p {
+    background: var(--brand-primary);
+    color: #fff;
+    /* Sharp bottom-right corner = "tail" pointing right */
+    border-radius: 18px 18px 4px 18px;
+    max-width: 75%;
+    padding: 10px 14px;
+    font-size: 0.95rem;
+    font-family: 'Tajawal', sans-serif;
+    margin: 0;
+    line-height: 1.5;
+    word-break: break-word;
+}
+
+/* Source Citation Bubble */
+.source-line {
+    margin-top: 8px;
+}
+
+.source-bubble {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: rgba(0, 0, 0, 0.06);
+    color: #666;
+    font-size: 0.72rem;
+    padding: 3px 9px 3px 7px;
+    border-radius: 20px;
+    text-decoration: none;
+    font-family: 'Tajawal', sans-serif;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    transition: background 0.2s, color 0.2s, border-color 0.2s;
+    white-space: nowrap;
+    max-width: 220px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    vertical-align: middle;
+    line-height: 1;
+}
+
+.source-bubble:hover {
+    background: rgba(var(--brand-primary-rgb), 0.08);
+    color: var(--brand-primary);
+    border-color: rgba(var(--brand-primary-rgb), 0.25);
+    text-decoration: none;
+}
+
+.source-bubble svg {
+    flex-shrink: 0;
+    opacity: 0.6;
+}
+
+/* Input Area */
+.chatbot .chat-input {
+    position: absolute;
+    bottom: 22px;
+    right: 10px;
+    left: auto;
+    /* Tracks the chat panel width (−10px each side padding). */
+    width: calc(var(--chat-w, 420px) - 20px);
+    max-width: calc(100% - 20px);
+    display: flex;
+    align-items: flex-end;
+    background: #fff;
+    padding: 8px 8px 8px 16px;
+    border: 1px solid #c0c0c0;
+    border-radius: 18px;
+    z-index: 10;
+}
+
+.chat-input textarea {
+    height: 38px;
+    width: 100%;
+    border: none;
+    outline: none;
+    resize: none;
+    max-height: 180px;
+    padding: 9px 10px 9px 0;
+    font-size: 0.95rem;
+    font-family: 'Tajawal', sans-serif;
+    background: transparent;
+    line-height: 20px;
+}
+
+/* Send Button */
+.send-btn {
+    width: 34px;
+    height: 34px;
+    margin-bottom: 2px;
+    border-radius: 10px;
+    border: 1.5px solid #ccc;
+    background: #e8e8e8;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    outline: none;
+    padding: 0;
+    transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.send-btn svg {
+    width: 15px;
+    height: 15px;
+    stroke: #aaa;
+    transition: stroke 0.2s ease;
+}
+
+.send-btn.active {
+    background: var(--brand-primary);
+    border-color: #005a41;
+}
+
+.send-btn.active svg {
+    stroke: #fff;
+}
+
+.chat-disclaimer {
+    position: absolute;
+    bottom: 6px;
+    left: 10px;
+    right: 10px;
+    text-align: center;
+    font-family: 'Tajawal', sans-serif;
+    font-size: 0.7rem;
+    color: #999;
+    pointer-events: none;
+    z-index: 10;
+}
+
+.chatbot-toggler span {
+    color: #fff;
+    font-size: 26px;
+}
+
+
+
+/* Dismissible contact banner — slides in after the first outgoing message */
+@keyframes contactBannerSlideDown {
+    from { max-height: 0; opacity: 0; padding-top: 0; padding-bottom: 0; }
+    to   { max-height: 70px; opacity: 1; padding-top: 8px; padding-bottom: 8px; }
+}
+
+.contact-banner {
+    display: none;
+    align-items: center;
+    padding: 8px 12px 8px 16px;
+    background: #e8f5e9;
+    border-bottom: 1px solid #a5d6a7;
+    color: #1b5e20;
+    font-family: 'Tajawal', sans-serif;
+    font-size: 0.82rem;
+    line-height: 1.4;
+    flex-shrink: 0;
+    overflow: hidden;
+}
+
+.contact-banner.visible {
+    display: flex;
+    animation: contactBannerSlideDown 0.35s ease-out forwards;
+}
+
+.contact-banner .contact-banner-text {
+    flex: 1;
+}
+
+.contact-banner .contact-email {
+    color: var(--brand-primary);
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.contact-banner .contact-email:hover {
+    text-decoration: underline;
+}
+
+.contact-banner-close {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #2e7d32;
+    font-size: 1.2rem;
+    line-height: 1;
+    padding: 2px 6px;
+    margin-left: 8px;
+    border-radius: 4px;
+    flex-shrink: 0;
+    transition: background 0.18s;
+}
+
+.contact-banner-close:hover {
+    background: rgba(var(--brand-primary-rgb), 0.12);
+}
+
+/* Enrollment Banner (persistent, below header) */
+.enrollment-banner {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 16px;
+    background: linear-gradient(135deg, #e8f5e9, #c8e6c9);
+    border-bottom: 1px solid #a5d6a7;
+    flex-shrink: 0;
+    font-family: 'Tajawal', sans-serif;
+    font-size: 0.88rem;
+    color: #1b5e20;
+}
+
+.banner-icon {
+    font-size: 1.1rem;
+    flex-shrink: 0;
+}
+
+.banner-text {
+    flex: 1;
+    font-weight: 500;
+}
+
+.banner-btn {
+    border: none;
+    padding: 6px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-family: 'Tajawal', sans-serif;
+    font-size: 0.82rem;
+    font-weight: 600;
+    background: var(--brand-primary);
+    color: #fff;
+    transition: background 0.2s, transform 0.1s;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.banner-btn:hover:not(:disabled) {
+    background: var(--brand-primary-dark);
+    transform: scale(1.03);
+}
+
+.banner-btn:active:not(:disabled) {
+    transform: scale(0.97);
+}
+
+.banner-btn-waiting {
+    background: #78909c !important;
+    cursor: default;
+    opacity: 0.85;
+}
+
+/* Top-to-bottom reveal animation for AI responses */
+@keyframes revealTopToBottom {
+    from {
+        clip-path: inset(0 0 100% 0);
+        opacity: 0;
+    }
+    to {
+        clip-path: inset(0 0 0% 0);
+        opacity: 1;
+    }
+}
+
+.chatbox .incoming.response-reveal {
+    animation: revealTopToBottom 1.2s ease-out forwards;
+}
+
+/* Schedule Call Inline Message */
+.schedule-call-msg {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-width: 75%;
+}
+
+.schedule-call-msg p {
+    background: #f0f0f0;
+    color: #000;
+    border-radius: 18px 18px 18px 4px;
+    padding: 10px 14px;
+    font-size: 0.95rem;
+    font-family: 'Tajawal', sans-serif;
+    margin: 0;
+    line-height: 1.5;
+    word-break: break-word;
+}
+
+.inline-schedule-btn {
+    border: none;
+    padding: 8px 16px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-family: 'Tajawal', sans-serif;
+    font-size: 0.88rem;
+    font-weight: 600;
+    background: var(--brand-primary);
+    color: #fff;
+    transition: background 0.2s, transform 0.1s;
+    align-self: flex-start;
+}
+
+.inline-schedule-btn:hover:not(:disabled) {
+    background: var(--brand-primary-dark);
+    transform: scale(1.03);
+}
+
+.inline-schedule-btn:active:not(:disabled) {
+    transform: scale(0.97);
+}
+
+.inline-schedule-btn:disabled {
+    background: #78909c;
+    cursor: default;
+    opacity: 0.85;
+}
+
+/* List padding and margins */
+.chatbox .incoming p ul,
+.chatbox .incoming p ol {
+    padding-left: 22px; /* reduced from browser default of 40px */
+    margin-top: 6px;
+    margin-bottom: 6px;
+}
+
+.chatbox .incoming p li {
+    margin-bottom: 3px;
+}
+
+/* Sub-lists get proper spacing */
+.chatbox .incoming p ul ul,
+.chatbox .incoming p ol ol,
+.chatbox .incoming p ul ol,
+.chatbox .incoming p ol ul {
+    margin-top: 3px;
+    margin-bottom: 3px;
+    /* Adding padding here isn't strictly necessary since standard nesting creates multiple padding layers inherently */
+}
+
+/* Bullet point dots green, text stays black; numbered list markers bolded */
+.chatbox .incoming p ul li::marker,
+.chatbox .incoming p ol li::marker {
+    color: var(--brand-primary);
+    font-weight: bold;
+}
+
+/* Thinking Animation (bouncing dots) */
+.thinking-animation {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 2px 0;
+}
+
+.thinking-animation .dot {
+    width: 8px;
+    height: 8px;
+    background: var(--brand-primary);
+    border-radius: 50%;
+    animation: thinking-bounce 1.4s infinite ease-in-out both;
+}
+
+.thinking-animation .dot:nth-child(1) {
+    animation-delay: -0.32s;
+}
+
+.thinking-animation .dot:nth-child(2) {
+    animation-delay: -0.16s;
+}
+
+.thinking-animation .dot:nth-child(3) {
+    animation-delay: 0s;
+}
+
+@keyframes thinking-bounce {
+    0%, 80%, 100% {
+        transform: scale(0.4);
+        opacity: 0.4;
+    }
+    40% {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+/* ---------------------------------------------------------------------
+   Chat History Sidebar
+   --------------------------------------------------------------------- */
+
+/* The sidebar is a sibling of .chatbot (not a child) so its position:fixed
+   resolves against the IFRAME viewport rather than the chat panel. (.chatbot
+   has a transform, which would otherwise make it the containing block and clip
+   the sidebar via the panel's overflow:hidden.)
+   The parent page widens the iframe by 200px on the LEFT (the chat panel is
+   pinned to the right edge with a constant width, so it never moves), and the
+   sidebar slides out from behind the panel into that newly-revealed left-edge
+   space — like a card emerging from behind the chat window. */
+.chat-sidebar {
+    position: fixed;
+    left: 0;
+    top: 15px;
+    bottom: 65px;
+    width: 200px;
+    padding-top: 8px;
+    background: #f5f5f7;
+    border-right: 1px solid #e0e0e0;
+    border-radius: 15px 0 0 15px;
+    overflow: hidden;
+    transform: translateX(-100%);
+    transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+    will-change: transform;
+    display: flex;
+    flex-direction: column;
+    z-index: 9998;
+}
+
+/* Toggled on <body> by chatbot.js so the sidebar's state is independent of the
+   transformed .chatbot panel. */
+body.sidebar-open .chat-sidebar { transform: translateX(0); }
+.chat-sidebar[hidden] { display: none; }
+
+/* Flatten the chat panel's LEFT corners when the sidebar is open so its edge
+   sits flush against the sidebar's flat right edge — no rounded-corner gap.
+   The border-radius transition on .chatbot keeps this change in sync with the
+   sidebar's 0.25s slide. */
+body.sidebar-open .chatbot {
+    border-radius: 0 15px 15px 0;
+}
+
+.chat-sidebar-header {
+    padding: 12px 14px 8px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #6e6e73;
+    white-space: nowrap;
+}
+
+.chat-sidebar-list {
+    list-style: none;
+    margin: 0;
+    padding: 4px 0;
+    overflow-y: auto;
+    flex: 1;
+}
+
+.chat-sidebar-item {
+    position: relative;
+    padding: 10px 28px 10px 14px;
+    cursor: pointer;
+    border-left: 3px solid transparent;
+    transition: background 0.15s ease;
+}
+
+.chat-sidebar-item:hover {
+    background: #ececec;
+}
+
+.chat-sidebar-item.active {
+    background: #e8f3ee;
+    border-left-color: var(--brand-primary);
+}
+
+.chat-sidebar-item-title {
+    font-size: 13px;
+    font-weight: 500;
+    color: #1c1c1e;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.chat-sidebar-item-time {
+    font-size: 11px;
+    color: #9a9a9e;
+    margin-top: 2px;
+}
+
+.chat-sidebar-delete {
+    position: absolute;
+    right: 6px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    color: #9a9a9e;
+    font-size: 16px;
+    line-height: 1;
+    padding: 4px 6px;
+    border-radius: 4px;
+    opacity: 0;
+    transition: opacity 0.15s ease, background 0.15s ease;
+}
+
+.chat-sidebar-item:hover .chat-sidebar-delete {
+    opacity: 1;
+}
+
+.chat-sidebar-delete:hover {
+    background: #e0e0e0;
+    color: #d32f2f;
+}
+
+.chat-sidebar-empty {
+    padding: 24px 14px;
+    font-size: 12px;
+    color: #9a9a9e;
+    text-align: center;
+}
+
+.chat-sidebar-confirm {
+    margin: 0 14px 6px;
+    padding: 10px 12px;
+    background: #fff;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.10);
+}
+
+.chat-sidebar-confirm-msg {
+    margin: 0 0 8px;
+    font-size: 12px;
+    color: #1c1c1e;
+}
+
+.chat-sidebar-confirm-btns {
+    display: flex;
+    gap: 6px;
+}
+
+.chat-sidebar-confirm-yes {
+    flex: 1;
+    padding: 5px 8px;
+    font-size: 11px;
+    background: #d32f2f;
+    color: #fff;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background 0.15s ease;
+}
+
+.chat-sidebar-confirm-yes:hover {
+    background: #b71c1c;
+}
+
+.chat-sidebar-confirm-cancel {
+    flex: 1;
+    padding: 5px 8px;
+    font-size: 11px;
+    background: transparent;
+    border: 1px solid #c0c0c0;
+    border-radius: 5px;
+    cursor: pointer;
+    color: #6e6e73;
+    transition: background 0.15s ease;
+}
+
+.chat-sidebar-confirm-cancel:hover {
+    background: #f0f0f0;
+}
+
+.chat-sidebar-clear {
+    margin: 0 14px 12px;
+    padding: 6px 10px;
+    font-size: 12px;
+    color: #6e6e73;
+    background: transparent;
+    border: 1px solid #c0c0c0;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.chat-sidebar-clear:hover {
+    color: #d32f2f;
+    border-color: #d32f2f;
+}
+
+/* Pin chat content to the chat panel width (the area to the right of the
+   sidebar). Each flex child uses margin-left:auto so it hugs the right edge
+   of the container; --chat-w tracks the panel width, which the parent page
+   keeps constant whether or not the sidebar is open. */
+.chatbot > #contact-banner,
+.chatbot > .welcome-screen,
+.chatbot > .chatbox,
+.chatbot > .chat-disclaimer,
+.chatbot > .gradient-wave {
+    width: var(--chat-w, 420px);
+    max-width: 100%;
+    margin-left: auto;
+}
+
+/* Keep header buttons above the sidebar and at consistent color. */
+.chatbot header .history-btn,
+.chatbot header .new-chat-btn {
+    z-index: 3;
+    transition: background 0.2s ease, color 0.2s ease;
+}
+
+/* History button styling — match new-chat-btn and close-btn */
+.chatbot header .history-btn {
+    position: absolute;
+    left: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+    background: transparent;
+    color: #3c3c43;
+    transition: background 0.22s ease, color 0.22s ease;
+}
+
+.chatbot header .history-btn:hover {
+    background: var(--brand-primary);
+    color: #ffffff;
+}
+
+.chatbot header .history-btn svg {
+    width: 26px;
+    height: 26px;
+}
+
+/* Existing new-chat-btn lives to the right of history button */
+.chatbot header .new-chat-btn {
+    left: 58px;
+}
+
+/* ---------------------------------------------------------------------
+   iOS-style Resize Handle (bottom-left corner)
+   Dragging the handle resizes the chat window. The actual iframe resize
+   is driven by the parent page via postMessage (see chatbot.js); this
+   element is purely the visual + grab target. Corner anchor = bottom-left,
+   so the grip points bottom-left and the window grows toward the top-right.
+   --------------------------------------------------------------------- */
+.chatbot .resize-handle {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    width: 22px;
+    height: 22px;
+    cursor: nwse-resize;
+    display: none;
+    z-index: 20;
+    -webkit-tap-highlight-color: transparent;
+}
+
+/* A thin gray arc hugging the inside of the bottom-left corner. Instead of
+   a filled block, it's drawn as two concentric quarter-circle strokes whose
+   radii (11px and 7px) sit just inside the chatbot's 15px corner radius, so
+   the grip reads as part of the corner itself — the macOS/iOS corner-resize
+   look. Both arcs share the chatbot's bottom-left corner as their center, so
+   they stay perfectly parallel to the corner curve. */
+.chatbot .resize-handle::before,
+.chatbot .resize-handle::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    border-style: solid;
+    border-color: rgba(60, 60, 67, 0.32);
+    border-width: 0;
+    border-left-width: 1.5px;
+    border-bottom-width: 1.5px;
+    pointer-events: none;
+    transition: border-color 0.2s ease;
+}
+
+.chatbot .resize-handle::before {
+    width: 11px;
+    height: 11px;
+    border-bottom-left-radius: 11px;
+}
+
+.chatbot .resize-handle::after {
+    width: 7px;
+    height: 7px;
+    border-bottom-left-radius: 7px;
+    border-color: rgba(60, 60, 67, 0.22);
+}
+
+.chatbot .resize-handle:hover::before,
+.chatbot .resize-handle.dragging::before,
+.chatbot .resize-handle:hover::after,
+.chatbot .resize-handle.dragging::after {
+    border-color: rgba(60, 60, 67, 0.5);
+}
+
+body.show-chatbot .chatbot .resize-handle {
+    display: flex;
+}
+
+/* Hide on mobile — the bottom sheet is full-screen and not resizable. */
+.chatbot.mobile .resize-handle {
+    display: none !important;
+}
+
+/* ---------------------------------------------------------------------
+   --chat-w: width of the chat content panel (the region to the right of
+   the sidebar). Children that must stay a fixed width regardless of the
+   sidebar use var(--chat-w). chatbot.js keeps this in sync by measuring
+   the panel and subtracting the sidebar width when it's open.
+   --------------------------------------------------------------------- */
+:root {
+    --chat-w: 420px;
+}
+
+
+
+.chatbot.mobile {
+    left: 0;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: 100% !important;
+    height: 100% !important;
+    border-radius: 20px 20px 0 0;
+    transform-origin: bottom center;
+    box-shadow: 0 -2px 20px rgba(0, 0, 0, 0.12);
+}
+
+.chatbot.mobile header {
+    width: 100%;
+    cursor: default;
+    border-radius: 20px 20px 0 0;
+}
+
+.chatbot.mobile header::before {
+    width: 40px;
+    height: 4px;
+    top: 6px;
+    border-radius: 3px;
+}
+
+.chatbot.mobile > #contact-banner,
+.chatbot.mobile > .welcome-screen,
+.chatbot.mobile > .chatbox,
+.chatbot.mobile > .chat-input,
+.chatbot.mobile > .chat-disclaimer,
+.chatbot.mobile > .gradient-wave {
+    width: 100%;
+}
+
+body.mobile .chat-sidebar {
+    /* Full-screen overlay on mobile (not the left-edge "expand" drawer). */
+    width: 100%;
+    top: 0;
+    bottom: 0;
+    border-right: none;
+    border-radius: 0;
+}
+
+body.mobile.sidebar-open .chat-sidebar {
+    box-shadow: none;
+}
+
+/* On mobile the sidebar is a full-screen overlay (not adjacent to the panel),
+   so the panel keeps its normal mobile rounded corners even when open. */
+body.mobile.sidebar-open .chatbot {
+    border-radius: 20px 20px 0 0;
+}

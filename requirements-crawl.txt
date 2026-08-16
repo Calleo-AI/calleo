@@ -1,0 +1,9 @@
+# Crawling/rebuild pipeline (Database/create_db.py, update_db.py).
+# Browserless: the site is fully server-rendered, so plain httpx fetching
+# works — no crawl4ai/playwright/patchright needed.
+trafilatura
+langchain-text-splitters
+beautifulsoup4
+lxml
+httpx
+markdownify

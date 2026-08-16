@@ -1,0 +1,12 @@
+flask
+flask-cors
+flask-limiter
+# chromadb pinned: 1.2+ changed GoogleGenerativeAiEmbeddingFunction in a way that
+# breaks against current google-api-core (ClientOptions rejects 'headers').
+# Bump only after verifying: pytest tests/test_llm_client.py in a fresh venv.
+chromadb==1.1.0
+python-dotenv
+gunicorn
+openai
+google-generativeai
+markdown

@@ -1,0 +1,21 @@
+# Python / Backend
+*.py
+__pycache__/
+*.pyc
+*.egg-info/
+
+# Backend modules
+agent_chatbot/
+agent_analysis/
+Database/
+tests/
+
+# Python dependencies
+requirements.txt
+requirements-dev.txt
+
+# Misc
+.git/
+.gitignore
+README.md
+CLAUDE.md

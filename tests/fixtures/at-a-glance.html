@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<!-- Synthetic Blackbaud-shaped fixture for a fictional "Example School".
+     Exercises the chrome/junk negative assertions in tests/test_extraction.py:
+     the words "Login", "myschoolapp", "Quick Links", and "List of" appear only
+     inside chrome that selector_extract must strip. -->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>At a Glance | Example School</title>
+</head>
+<body>
+  <div class="page-row header-row">
+    <div class="content megamenu">
+      <ul>
+        <li><a href="/login">Login</a></li>
+        <li><a href="https://example.myschoolapp.com/app">myschoolapp Portal</a></li>
+        <li><a href="/quick-links">Quick Links</a></li>
+        <li><a href="/about">About Us</a></li>
+        <li><a href="/admissions">Admissions</a></li>
+        <li><a href="/academics">Academics</a></li>
+      </ul>
+    </div>
+    <div class="content links">
+      <a href="/calendar">Calendar</a>
+      <a href="/directions">Directions</a>
+    </div>
+  </div>
+
+  <div class="page-row">
+    <div class="page-col span12">
+      <span class="element-invisible">List of 8 items.</span>
+      <h1 class="page-title">At a Glance</h1>
+      <p>Example School is a co-educational independent day school serving 500
+      students from Kindergarten through Grade 12. Founded in 1901, the school
+      sits on a twelve-acre campus with dedicated lower, middle, and upper
+      school buildings, a performing arts centre, and two gymnasiums.</p>
+      <ul>
+        <li>Student-teacher ratio of 10:1 with an average class size of 16</li>
+        <li>Over forty student-led clubs and twenty competitive athletic teams</li>
+        <li>One hundred percent of graduates receive university offers</li>
+        <li>Need-based financial aid available at every grade level</li>
+      </ul>
+      <p>Our mission is to nurture curiosity, integrity, and community in every
+      student. Families are welcome to book a campus tour through the
+      Admissions Office at any point in the school year.</p>
+      <span class="element-invisible">List of 3 items.</span>
+    </div>
+    <div class="page-col span4">
+      <h3>Upcoming Open House</h3>
+      <p>Join us for our fall open house and meet our faculty in person.</p>
+    </div>
+  </div>
+</body>
+</html>

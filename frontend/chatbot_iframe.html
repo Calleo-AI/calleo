@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chatbot Iframe</title>
+    <!-- Material Symbols for Icons -->
+    <link rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@48,400,0,0" />
+    <!-- Tajawal Font -->
+    <link rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700&display=swap" />
+    <link rel="stylesheet" href="chatbot.css">
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: transparent;
+            overflow: hidden;
+            font-family: 'Tajawal', sans-serif;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        /* Ensure the iframe content is clickable where elements are */
+        * {
+            box-sizing: border-box;
+        }
+    </style>
+</head>
+
+<body>
+    <button class="chatbot-toggler">
+        <span class="material-symbols-rounded">chat_bubble</span>
+    </button>
+
+    <div class="chatbot">
+        <header>
+            <span class="history-btn" title="Chat History">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M3.5 12a8.5 8.5 0 1 0 2.6-6.1L3 8.5"/>
+                    <polyline points="3 4 3 8.5 7.5 8.5"/>
+                    <polyline points="12 7.5 12 12 15 13.5"/>
+                </svg>
+            </span>
+            <span class="new-chat-btn" title="New Chat">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M14 4H6.5A2.5 2.5 0 0 0 4 6.5v11A2.5 2.5 0 0 0 6.5 20h11a2.5 2.5 0 0 0 2.5-2.5V10"/>
+                    <path d="M18.4 3.6a1.97 1.97 0 0 1 2.8 2.8L12 15.6l-3.6.8.8-3.6 9.2-9.2z"/>
+                </svg>
+            </span>
+            <select class="lang-select" id="lang-select" title="Select language">
+                <option value="English">English</option>
+                <option value="French">Français</option>
+                <option value="Spanish">Español</option>
+                <option value="Arabic">العربية</option>
+                <option value="Chinese">中文</option>
+                <option value="Urdu">اردو</option>
+                <option value="Portuguese">Português</option>
+            </select>
+            <span class="close-btn material-symbols-rounded">close</span>
+        </header>
+
+        <div id="contact-banner" class="contact-banner">
+            <!-- Filled from school_config.js by chatbot.js on load -->
+            <span class="contact-banner-text" id="contact-banner-text"></span>
+            <button class="contact-banner-close" id="contact-banner-close" aria-label="Dismiss">&times;</button>
+        </div>
+
+        <div class="welcome-screen" id="welcome-screen">
+            <!-- Text is replaced from school_config.js translations on load -->
+            <p class="welcome-text">Hi! <span class="wave-emoji">👋</span><br><span class="welcome-tagline">What is your question?</span></p>
+        </div>
+
+        <div class="gradient-wave" aria-hidden="true"></div>
+
+        <ul class="chatbox" style="display:none;"></ul>
+        <div class="chat-input">
+            <textarea placeholder="Ask me anything..." spellcheck="false" required></textarea>
+            <button id="send-btn" class="send-btn" type="button" aria-label="Send message">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="12" y1="19" x2="12" y2="5"></line>
+                    <polyline points="5 12 12 5 19 12"></polyline>
+                </svg>
+            </button>
+        </div>
+        <div class="chat-disclaimer" id="chat-disclaimer">AI generated content. Always double check sources.</div>
+
+        <!-- iOS-style resize handle (bottom-left corner). The grip is the
+             grab target; the actual resize is driven by the parent page via
+             postMessage (see chatbot.js). -->
+        <div class="resize-handle" id="resize-handle">
+            <span class="resize-grip"></span>
+        </div>
+    </div>
+
+    <!-- Chat history sidebar. Lives OUTSIDE .chatbot on purpose: .chatbot has a
+         transform (scale) which makes it the containing block for fixed
+         descendants, so a sidebar nested inside it would be clipped by the
+         panel's overflow:hidden and slide INTO the panel. By placing it as a
+         sibling, its position:fixed resolves against the iframe viewport, and
+         it slides out from behind the panel into the space the parent page
+         widens on the left — like a card emerging from behind the window. -->
+    <aside class="chat-sidebar" aria-label="Chat history" hidden>
+        <div class="chat-sidebar-header">Previous chats</div>
+        <ul class="chat-sidebar-list"></ul>
+        <div class="chat-sidebar-empty">No saved chats yet</div>
+        <div class="chat-sidebar-confirm" id="chat-sidebar-confirm" hidden>
+            <p class="chat-sidebar-confirm-msg">Delete all saved chats?</p>
+            <div class="chat-sidebar-confirm-btns">
+                <button class="chat-sidebar-confirm-yes" type="button">Delete</button>
+                <button class="chat-sidebar-confirm-cancel" type="button">Cancel</button>
+            </div>
+        </div>
+        <button class="chat-sidebar-clear" type="button">Clear all</button>
+    </aside>
+
+    <script src="school_config.js"></script>
+    <script src="chat_history_store.js"></script>
+    <script src="chatbot.js"></script>
+</body>
+
+</html>

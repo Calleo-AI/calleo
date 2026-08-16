@@ -1,0 +1,290 @@
+<!--
+  School Chatbot — parent-page embed
+  Paste this entire block into an HTML embed widget on your school's site
+  (verified with the Blackbaud CMS, but any CMS that accepts raw HTML works).
+  EDIT ME: replace https://YOUR-CHATBOT-HOST.example below with the host that
+  serves chatbot_iframe.html, and adjust the brand color in the hint popup
+  styles at the bottom (this snippet is pasted into a CMS, so it cannot share
+  the CSS variables defined in chatbot.css).
+-->
+<style>
+  #school-chatbot-iframe {
+    position: fixed;
+    bottom: 30px;
+    right: 35px;
+    width: 100px;
+    height: 190px;
+    border: none;
+    z-index: 10000;
+    background: transparent;
+    transition: width 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+                height 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+                left 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+                right 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+                top 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+                bottom 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+</style>
+
+<iframe id="school-chatbot-iframe"
+    src="https://YOUR-CHATBOT-HOST.example/chatbot_iframe.html"
+    title="School Chatbot"
+    loading="lazy"
+    allow="clipboard-write">
+</iframe>
+
+<script>
+(function() {
+    const iframe = document.getElementById('school-chatbot-iframe');
+    let dragState = null;
+    let isOpen = false;
+    let isSidebarOpen = false;
+
+    // ---- Resize state (iOS-style bottom-left handle) ---------------------
+    // The handle sits at the bottom-left corner, so the window grows toward
+    // the top-right: the TOP-RIGHT corner stays anchored. The iframe is pinned
+    // by right/top during a resize so that anchor holds even after a free-drag.
+    let resizeState = null;
+    const CHAT_MIN_W = 360;
+    const CHAT_MAX_W = 760;
+    const CHAT_MIN_H = 420;
+    const CHAT_MAX_H = 900;
+
+    function isMobile() {
+        return window.innerWidth <= 768;
+    }
+
+    function notifyMobile() {
+        if (iframe.contentWindow) {
+            iframe.contentWindow.postMessage({ type: 'set-mobile', mobile: isMobile() }, '*');
+        }
+    }
+
+    function setOpen(open) {
+        isOpen = open;
+        isSidebarOpen = false;
+        const mobile = isMobile();
+        if (open) {
+            if (mobile) {
+                iframe.style.left = '0';
+                iframe.style.right = '0';
+                iframe.style.bottom = '0';
+                iframe.style.top = 'auto';
+                iframe.style.width = '100%';
+                iframe.style.height = '92vh';
+            } else {
+                iframe.style.width = '450px';
+                iframe.style.height = '680px';
+            }
+        } else {
+            iframe.style.width = '100px';
+            iframe.style.height = '190px';
+            iframe.style.left = 'auto';
+            iframe.style.top = 'auto';
+            iframe.style.right = '35px';
+            iframe.style.bottom = '30px';
+        }
+        notifyMobile();
+    }
+
+    function setSidebarOpen(open) {
+        isSidebarOpen = open;
+        if (!isOpen || isMobile()) return;
+        const curW = iframe.offsetWidth;
+        if (open) {
+            // Widen by the sidebar width (200px) on the LEFT so the chat
+            // panel (right portion) stays put. Works for both a right-anchored
+            // window and one that was freely dragged.
+            if (iframe.style.left && iframe.style.left !== 'auto') {
+                const curLeft = parseFloat(iframe.style.left) || 0;
+                iframe.style.left = Math.max(0, curLeft - 200) + 'px';
+            } else {
+                iframe.style.left = 'auto';
+            }
+            iframe.style.width = (curW + 200) + 'px';
+        } else {
+            iframe.style.width = Math.max(CHAT_MIN_W, curW - 200) + 'px';
+            if (iframe.style.left && iframe.style.left !== 'auto') {
+                const curLeft = parseFloat(iframe.style.left) || 0;
+                iframe.style.left = (curLeft + 200) + 'px';
+            }
+        }
+    }
+
+    window.addEventListener('message', function(e) {
+        // Security: optionally verify e.origin === 'https://YOUR-CHATBOT-HOST.example'
+        if (!e.data || !e.data.type) return;
+
+        switch (e.data.type) {
+            case 'toggle':
+                setOpen(e.data.showing);
+                break;
+            case 'sidebar-toggle':
+                setSidebarOpen(e.data.open);
+                break;
+            case 'chatbot-drag-start':
+                const rect = iframe.getBoundingClientRect();
+                dragState = {
+                    startLeft: rect.left,
+                    startTop: rect.top,
+                    startX: e.data.screenX,
+                    startY: e.data.screenY
+                };
+                iframe.style.left = rect.left + 'px';
+                iframe.style.top = rect.top + 'px';
+                iframe.style.right = 'auto';
+                iframe.style.bottom = 'auto';
+                iframe.style.transition = 'none';
+                break;
+            case 'chatbot-drag-move':
+                if (!dragState) return;
+                const dx = e.data.screenX - dragState.startX;
+                const dy = e.data.screenY - dragState.startY;
+                const maxLeft = Math.max(0, window.innerWidth - iframe.offsetWidth);
+                const maxTop = Math.max(0, window.innerHeight - iframe.offsetHeight);
+                iframe.style.left = Math.min(Math.max(0, dragState.startLeft + dx), maxLeft) + 'px';
+                iframe.style.top = Math.min(Math.max(0, dragState.startTop + dy), maxTop) + 'px';
+                break;
+            case 'chatbot-drag-end':
+                if (!dragState) return;
+                dragState = null;
+                iframe.style.transition = '';
+                break;
+            case 'chatbot-resize-start': {
+                // iOS-style bottom-left handle: pin the TOP-RIGHT corner so the
+                // window grows toward the bottom-left. Switch to right/top
+                // anchoring and record the starting geometry in viewport px.
+                const r = iframe.getBoundingClientRect();
+                resizeState = {
+                    anchorTop: r.top,
+                    anchorRight: window.innerWidth - r.right,
+                    startW: r.width,
+                    startH: r.height,
+                    startX: e.data.screenX,
+                    startY: e.data.screenY,
+                    prevTransition: iframe.style.transition
+                };
+                iframe.style.left = 'auto';
+                iframe.style.bottom = 'auto';
+                iframe.style.top = resizeState.anchorTop + 'px';
+                iframe.style.right = resizeState.anchorRight + 'px';
+                iframe.style.transition = 'none';
+                break;
+            }
+            case 'chatbot-resize-move': {
+                if (!resizeState) return;
+                // Bottom-left handle: pointer-left widens, pointer-down grows.
+                const dw = resizeState.startX - e.data.screenX;
+                const dh = e.data.screenY - resizeState.startY;
+                let newW = resizeState.startW + dw;
+                let newH = resizeState.startH + dh;
+                newW = Math.min(Math.max(newW, CHAT_MIN_W), CHAT_MAX_W);
+                newH = Math.min(Math.max(newH, CHAT_MIN_H), CHAT_MAX_H);
+                // Respect the top-right anchor: cap to the space available.
+                const maxW = window.innerWidth - resizeState.anchorRight;
+                const maxH = window.innerHeight - resizeState.anchorTop;
+                newW = Math.min(newW, Math.max(CHAT_MIN_W, maxW));
+                newH = Math.min(newH, Math.max(CHAT_MIN_H, maxH));
+                iframe.style.width = newW + 'px';
+                iframe.style.height = newH + 'px';
+                break;
+            }
+            case 'chatbot-resize-end':
+                if (!resizeState) return;
+                iframe.style.transition = resizeState.prevTransition;
+                resizeState = null;
+                break;
+        }
+    });
+
+    window.addEventListener('resize', function() {
+        if (isOpen) setOpen(true);
+        if (iframe.style.right === 'auto') {
+            const maxLeft = Math.max(0, window.innerWidth - iframe.offsetWidth);
+            const maxTop = Math.max(0, window.innerHeight - iframe.offsetHeight);
+            iframe.style.left = Math.min(parseFloat(iframe.style.left) || 0, maxLeft) + 'px';
+            iframe.style.top = Math.min(parseFloat(iframe.style.top) || 0, maxTop) + 'px';
+        }
+        notifyMobile();
+    });
+
+    iframe.addEventListener('load', notifyMobile);
+})();
+</script>
+
+<!-- Chatbot Hint Popup -->
+<style>
+    @keyframes chatbotHintBounce {
+        0%, 100% { transform: translateY(0); }
+        50% { transform: translateY(-6px); }
+    }
+    #chatbot-hint-popup {
+        position: fixed;
+        bottom: 200px;
+        right: 18px;
+        background: #1f6f54; /* EDIT ME: your brand color */
+        color: #fff;
+        padding: 10px 32px 10px 14px;
+        border-radius: 12px;
+        font-family: 'Tajawal', sans-serif;
+        font-size: 14px;
+        line-height: 1.5;
+        box-shadow: 0 4px 16px rgba(0,0,0,0.25);
+        z-index: 10001;
+        max-width: 200px;
+        transition: opacity 0.3s ease, transform 0.3s ease;
+        animation: chatbotHintBounce 2s ease-in-out infinite;
+    }
+    #chatbot-hint-popup.chatbot-hint-hidden {
+        opacity: 0;
+        pointer-events: none;
+        transform: scale(0.85);
+        animation: none;
+    }
+    #chatbot-hint-close {
+        position: absolute;
+        top: 6px;
+        right: 8px;
+        background: none;
+        border: none;
+        color: #fff;
+        font-size: 13px;
+        cursor: pointer;
+        padding: 0;
+        line-height: 1;
+        opacity: 0.8;
+    }
+    #chatbot-hint-close:hover { opacity: 1; }
+    #chatbot-hint-arrow {
+        position: absolute;
+        bottom: -9px;
+        right: 20px;
+        width: 0;
+        height: 0;
+        border-left: 9px solid transparent;
+        border-right: 9px solid transparent;
+        border-top: 9px solid #1f6f54; /* EDIT ME: match the popup background */
+    }
+</style>
+<div id="chatbot-hint-popup">
+    <!-- close glyph as an HTML entity so the snippet survives non-UTF-8 host pages and CMS copy-paste -->
+    <button id="chatbot-hint-close" title="Dismiss">&#10005;</button>
+    Have a question? Try our chatbot!
+    <div id="chatbot-hint-arrow"></div>
+</div>
+<script>
+    (function () {
+        var popup = document.getElementById('chatbot-hint-popup');
+        var closeBtn = document.getElementById('chatbot-hint-close');
+        function dismissHint() {
+            popup.classList.add('chatbot-hint-hidden');
+        }
+        closeBtn.addEventListener('click', dismissHint);
+        window.addEventListener('message', function (event) {
+            if (event.data && event.data.type === 'toggle' && event.data.showing) {
+                dismissHint();
+            }
+        });
+    })();
+</script>
+<!-- End School Chatbot Embed -->

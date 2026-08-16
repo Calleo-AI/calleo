@@ -1,0 +1,29 @@
+# Secrets — never commit
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+ENV/
+env/
+.pytest_cache/
+
+# Local data — derived from a live deployment, never committed
+chroma_data/
+Database/snapshots/
+Database/rebuild_report.txt
+Database/rebuild.log
+agent_analysis/analysis_reports/*.md
+agent_analysis/*.jsonl
+
+# Logs / runtime
+*.log
+gunicorn.pid
+
+# Tooling
+.claude/settings.local.json

@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<!-- Synthetic Blackbaud-shaped fixture for a fictional "Example School".
+     Hand-written to exercise Database/extraction.py: page-row/span layout,
+     megamenu chrome, element-invisible a11y stubs, narrow promo rail. -->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Tuition and Fees | Example School</title>
+</head>
+<body>
+  <div class="page-row header-row">
+    <div class="content megamenu">
+      <ul>
+        <li><a href="/login">Login</a></li>
+        <li><a href="https://example.myschoolapp.com/app">myschoolapp Portal</a></li>
+        <li><a href="/quick-links">Quick Links</a></li>
+        <li><a href="/about">About Us</a></li>
+        <li><a href="/admissions">Admissions</a></li>
+        <li><a href="/academics">Academics</a></li>
+        <li><a href="/athletics">Athletics</a></li>
+        <li><a href="/arts">Arts</a></li>
+        <li><a href="/giving">Giving</a></li>
+        <li><a href="/contact">Contact</a></li>
+      </ul>
+    </div>
+    <form action="/search" class="content search">
+      <input type="text" name="q" placeholder="Search">
+    </form>
+  </div>
+
+  <div class="page-row">
+    <div class="page-col span12">
+      <span class="element-invisible">List of 6 items.</span>
+      <h1 class="page-title">Tuition and Fees</h1>
+      <p>Example School is committed to keeping an exceptional education within
+      reach of committed families. Tuition covers the full academic programme,
+      textbooks, co-curricular activities, and daily lunch. A one-time
+      enrollment deposit is credited against the first tuition installment.</p>
+      <table>
+        <thead>
+          <tr><th>Grade Level</th><th>Annual Tuition (2026-2027)</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>All Grades (K-12)</td><td>$45,000</td></tr>
+          <tr><td>New Student Enrollment Deposit</td><td>$5,000</td></tr>
+          <tr><td>Technology and Activity Fee</td><td>$225</td></tr>
+        </tbody>
+      </table>
+      <p>Families may choose a one-payment, two-payment, or ten-payment plan.
+      Need-based financial assistance is available at every grade; more than
+      one million dollars in aid is awarded annually. Contact the Enrolment
+      Office to learn more about payment schedules and assistance deadlines.</p>
+      <span class="element-invisible">List of 4 frequently asked questions.</span>
+    </div>
+    <div class="page-col span4">
+      <h3>Visit Our Photo Gallery</h3>
+      <p>See campus life in pictures and explore our newest facilities.</p>
+    </div>
+  </div>
+
+  <div class="page-row footer-row">
+    <nav>
+      <a href="/site-map">Site Map</a>
+      <a href="/privacy">Privacy Policy</a>
+    </nav>
+  </div>
+</body>
+</html>

@@ -1,0 +1,5399 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>School AI Chatbot</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600;6..72,700&family=Inter+Tight:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    /*
+      ============================================================
+      DESIGN TOKENS
+      ============================================================
+
+      PALETTE
+        --bg         : #0f172a  (deep slate background)
+        --surface    : #1e293b  (one step lighter surfaces)
+        --border     : #334155  (subtle borders, use with low opacity)
+        --text       : #f8fafc  (primary light text)
+        --text-muted : #94a3b8  (secondary / muted text)
+        --green      : #10b981  (healthy / success)
+        --amber      : #f59e0b  (warning)
+        --red        : #ef4444  (error)
+        --blue       : #3b82f6  (neutral / informational)
+
+      SPACING
+        --space-1 : 4px
+        --space-2 : 8px
+        --space-3 : 12px
+        --space-4 : 16px
+        --space-5 : 24px
+        --space-6 : 32px
+
+      RADIUS
+        --radius-card    : 8px  (cards, panels)
+        --radius-control : 6px  (buttons, inputs)
+        --radius-pill    : 9999px  (pills, status dots)
+
+      TYPOGRAPHY
+        --font-sans : Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif
+        --font-mono : ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace
+      ============================================================
+    */
+
+    :root {
+      /* Palette — warm dark gray */
+      --bg: #2E2829;
+      --surface: #403C38;
+      --surface-2: #4A4540;
+      --border: rgba(255, 255, 255, 0.12);
+      --border-strong: rgba(255, 255, 255, 0.18);
+      --text: #F2EFEA;
+      --text-muted: #A39E97;
+      --green: #40BD4B;
+      --amber: #E0A53A;
+      --red: #D46A6A;
+      --blue: #40BD4B; /* accent maps to green */
+      --accent: #40BD4B;
+
+      /* Spacing */
+      --space-1: 4px;
+      --space-2: 8px;
+      --space-3: 12px;
+      --space-4: 16px;
+      --space-5: 24px;
+      --space-6: 32px;
+
+      /* Radius — squared off */
+      --radius-card: 0px;
+      --radius-control: 0px;
+      --radius-pill: 0px;
+
+      /* Typography — serif headings + sans body */
+      --font-serif: "Newsreader", "Source Serif 4", Georgia, "Times New Roman", serif;
+      --font-sans: "Inter Tight", "IBM Plex Sans", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    }
+
+    /* Global Reset */
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: inherit;
+    }
+
+    html {
+      font-size: 16px;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    /* Global focus-visible ring for all interactive elements */
+    *:focus-visible {
+      outline: 2px solid var(--blue);
+      outline-offset: 2px;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: var(--font-sans);
+      line-height: 1.5;
+      min-height: 100vh;
+    }
+
+    /* Utility: Tabular numbers for numeric contexts */
+    .num {
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* Utility: Mono font for technical strings (IDs, tracebacks, timestamps) */
+    .mono {
+      font-family: var(--font-mono);
+    }
+
+    /* ============================================================
+       PULSE ANIMATION (status dot only animation allowed)
+       ============================================================ */
+    @keyframes pulse-green {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    /* ============================================================
+       TOP NAVIGATION
+       ============================================================ */
+    .top-nav {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      height: 56px;
+      background-color: var(--surface);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.16);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 var(--space-5);
+    }
+
+    .nav-left,
+    .nav-right {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+    }
+
+    .logo {
+      font-family: var(--font-mono);
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: var(--text);
+      letter-spacing: -0.01em;
+    }
+
+    .env-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-1);
+      padding: 2px var(--space-2);
+      border-radius: var(--radius-pill);
+      font-size: 0.6875rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      background-color: rgba(64, 189, 75, 0.12);
+      color: var(--green);
+      border: 1px solid rgba(64, 189, 75, 0.25);
+    }
+
+    /*
+      STAGING VARIANT — swap class on .env-pill:
+      background-color: rgba(64, 189, 75, 0.12);
+      color: var(--blue);
+      border-color: rgba(64, 189, 75, 0.25);
+    */
+
+    .nav-search {
+      position: relative;
+      width: 420px;
+      max-width: 100%;
+    }
+
+    .nav-search input {
+      width: 100%;
+      height: 36px;
+      padding: 0 var(--space-3);
+      padding-right: 36px;
+      background-color: var(--bg);
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      border-radius: var(--radius-control);
+      color: var(--text);
+      font-size: 0.875rem;
+
+      transition: border-color 0.15s ease;
+    }
+
+    .nav-search input::placeholder {
+      color: var(--text-muted);
+    }
+
+    .nav-search input:focus {
+      border-color: var(--blue);
+    }
+
+    .nav-search .kbd-hint {
+      position: absolute;
+      right: var(--space-2);
+      top: 50%;
+      transform: translateY(-50%);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 20px;
+      height: 20px;
+      border-radius: var(--radius-control);
+      background-color: rgba(255, 255, 255, 0.10);
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+      font-size: 0.6875rem;
+      line-height: 1;
+      pointer-events: none;
+    }
+
+    .icon-btn {
+      width: 32px;
+      height: 32px;
+      border-radius: var(--radius-control);
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      transition: color 0.15s ease, background-color 0.15s ease;
+    }
+
+    .icon-btn:hover {
+      color: var(--text);
+      background-color: rgba(255, 255, 255, 0.08);
+    }
+
+    /* ============================================================
+       SYSTEM STATUS STRIP
+       ============================================================ */
+    .status-strip {
+      height: 48px;
+      background-color: var(--bg);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.10);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 var(--space-5);
+    }
+
+    .status-cluster {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background-color: var(--green);
+      animation: pulse-green 2s ease-in-out infinite;
+    }
+
+    .status-text {
+      font-size: 0.8125rem;
+      color: var(--text-muted);
+    }
+
+    .status-text strong {
+      color: var(--text);
+      font-weight: 500;
+    }
+
+    .refresh-meta {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      font-size: 0.8125rem;
+      color: var(--text-muted);
+    }
+
+    .refresh-btn {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: transparent;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      color: var(--text-muted);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      transition: color 0.15s ease, border-color 0.15s ease;
+    }
+
+    .refresh-btn:hover {
+      color: var(--text);
+      border-color: var(--text-muted);
+    }
+
+    .toggle-switch {
+      position: relative;
+      width: 36px;
+      height: 20px;
+      background-color: rgba(255, 255, 255, 0.16);
+      border-radius: var(--radius-pill);
+      cursor: pointer;
+      transition: background-color 0.15s ease;
+      border: none;
+
+    }
+
+    .toggle-switch::after {
+      content: '';
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background-color: var(--text);
+      transition: transform 0.15s ease;
+    }
+
+    .toggle-switch[aria-checked="true"] {
+      background-color: var(--amber);
+    }
+
+    .toggle-switch[aria-checked="true"]::after {
+      transform: translateX(16px);
+    }
+
+    .toggle-switch--green[aria-checked="true"] {
+      background-color: var(--green);
+    }
+
+    /* ============================================================
+       MAIN CONTENT CONTAINER
+       ============================================================ */
+    .app-main {
+      max-width: 1440px;
+      margin: 0 auto;
+      padding: var(--space-5);
+    }
+
+    .app-main > section + section {
+      margin-top: var(--space-5);
+    }
+
+    /* View switching */
+    section[data-view]:not(.is-active) {
+      display: none;
+    }
+
+    /* ============================================================
+       KPI GRID
+       ============================================================ */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: var(--space-4);
+    }
+
+    .kpi-card {
+      background-color: var(--surface);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: var(--radius-card);
+      padding: 20px;
+    }
+
+    .kpi-label {
+      font-size: 0.6875rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+      margin-bottom: var(--space-2);
+    }
+
+    .kpi-value-row {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      margin-bottom: var(--space-1);
+    }
+
+    .kpi-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .kpi-dot--green {
+      background-color: var(--green);
+    }
+
+    .kpi-dot--red {
+      background-color: var(--red);
+    }
+
+    .kpi-number {
+      font-size: 2rem;
+      font-weight: 600;
+      line-height: 1.2;
+      color: var(--text);
+    }
+
+    .kpi-delta {
+      font-size: 0.75rem;
+      font-weight: 500;
+      margin-top: var(--space-1);
+    }
+
+    .kpi-delta--green {
+      color: var(--green);
+    }
+
+    .kpi-delta--red {
+      color: var(--red);
+    }
+
+    /* ============================================================
+       TRAFFIC CHART CARD
+       ============================================================ */
+    .chart-card {
+      background-color: var(--surface);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: var(--radius-card);
+      padding: 20px;
+    }
+
+    .card-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      margin-bottom: var(--space-4);
+    }
+
+    .card-header h2 {
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .card-header p {
+      font-size: 0.8125rem;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    .segmented-control {
+      display: inline-flex;
+      background-color: var(--bg);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: var(--radius-control);
+      overflow: hidden;
+    }
+
+    .segmented-control button {
+      padding: var(--space-1) var(--space-3);
+      font-size: 0.75rem;
+      font-weight: 500;
+      color: var(--text-muted);
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      transition: color 0.15s ease, background-color 0.15s ease;
+    }
+
+    .segmented-control button:hover {
+      color: var(--text);
+    }
+
+    .segmented-control button.active {
+      background-color: rgba(64, 189, 75, 0.15);
+      color: var(--blue);
+    }
+
+    /* "Custom range" affordance — sits at the end of the 24h/7d/30d row,
+       visually separated by a divider and tinted to read as an action. */
+    .traffic-range-row {
+      flex-wrap: nowrap;
+    }
+    .range-custom-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      margin-left: 6px;
+      padding-left: var(--space-3) !important;
+      border-left: 1px solid rgba(255, 255, 255, 0.14) !important;
+      color: var(--text) !important;
+    }
+    .range-custom-btn svg {
+      flex-shrink: 0;
+    }
+    .range-custom-btn[aria-pressed="true"] {
+      background-color: var(--accent) !important;
+      color: #14110F !important;
+      font-weight: 600;
+    }
+    .range-custom-btn[aria-pressed="true"] svg {
+      stroke: #14110F;
+    }
+
+    .chart-wrapper {
+      position: relative;
+      height: 280px;
+    }
+
+    .chart-svg {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      overflow: visible;
+    }
+
+    .chart-svg .gridline {
+      stroke: rgba(255, 255, 255, 0.08);
+      stroke-width: 1;
+    }
+
+    .chart-svg text {
+      fill: var(--text-muted);
+      font-family: var(--font-sans);
+      font-size: 11px;
+    }
+
+    .bars-overlay {
+      position: absolute;
+      left: 6.8%;
+      right: 6.8%;
+      top: 6.7%;
+      bottom: 13.3%;
+      display: flex;
+      align-items: flex-end;
+      gap: 4px;
+    }
+
+    .bar-group {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-end;
+      position: relative;
+      height: 100%;
+    }
+
+    .bar {
+      width: 100%;
+      max-width: 24px;
+      background-color: var(--blue);
+      border-radius: 2px 2px 0 0;
+      transition: background-color 0.15s ease;
+      cursor: pointer;
+    }
+
+    .bar:hover {
+      background-color: var(--blue);
+    }
+
+    .tooltip {
+      position: absolute;
+      bottom: calc(100% + 8px);
+      left: 50%;
+      transform: translateX(-50%) translateY(4px);
+      padding: 4px 10px;
+      background-color: var(--surface);
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      border-radius: var(--radius-control);
+      font-size: 0.75rem;
+      color: var(--text);
+      white-space: nowrap;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.15s ease, transform 0.15s ease;
+      z-index: 10;
+    }
+
+    .bar:hover + .tooltip {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    .chart-footer {
+      margin-top: var(--space-4);
+      padding-top: var(--space-3);
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+      font-size: 0.8125rem;
+      color: var(--text-muted);
+    }
+
+    /* ============================================================
+       EVENTS CARD
+       ============================================================ */
+    .events-card,
+    .conversations-card {
+      background-color: var(--surface);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: var(--radius-card);
+      padding: 20px;
+    }
+
+    .events-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: var(--space-3);
+      margin-bottom: var(--space-4);
+    }
+
+    .events-header-left h2 {
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .events-header-left p {
+      font-size: 0.8125rem;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    .events-header-right {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      flex-shrink: 0;
+    }
+
+    .live-indicator {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.8125rem;
+      color: var(--text-muted);
+      margin-right: var(--space-1);
+    }
+
+    .live-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background-color: var(--green);
+      animation: pulse-green 2s ease-in-out infinite;
+    }
+
+    .btn-ghost-sm {
+      padding: var(--space-1) var(--space-3);
+      border-radius: var(--radius-control);
+      background: transparent;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      color: var(--text-muted);
+      font-size: 0.8125rem;
+      cursor: pointer;
+      transition: color 0.15s ease, border-color 0.15s ease, background-color 0.15s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-1);
+      white-space: nowrap;
+    }
+
+    .btn-ghost-sm:hover {
+      color: var(--text);
+      border-color: var(--text-muted);
+      background-color: rgba(255, 255, 255, 0.06);
+    }
+
+    /* Filter bar */
+    .filter-bar {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: var(--space-3);
+      margin-bottom: var(--space-4);
+      padding-bottom: var(--space-3);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .filter-select,
+    .filter-input {
+      height: 32px;
+      padding: 0 var(--space-2);
+      background-color: var(--bg);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: var(--radius-control);
+      color: var(--text);
+      font-size: 0.8125rem;
+
+      appearance: none;
+      -webkit-appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23A39E97' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 8px center;
+      padding-right: 28px;
+      cursor: pointer;
+    }
+
+    .filter-input {
+      min-width: 160px;
+      background-image: none;
+      padding-right: var(--space-2);
+      cursor: text;
+    }
+
+    .filter-input::placeholder {
+      color: var(--text-muted);
+    }
+
+    .filter-select:focus,
+    .filter-input:focus {
+      border-color: var(--blue);
+    }
+
+    .clear-filters {
+      margin-left: auto;
+      font-size: 0.8125rem;
+      color: var(--text-muted);
+      text-decoration: none;
+      transition: color 0.15s ease;
+      background: none;
+      border: none;
+      cursor: pointer;
+    }
+
+    .clear-filters:hover {
+      color: var(--text);
+    }
+
+    /* Table */
+    .events-table-wrap {
+      overflow-x: auto;
+      position: relative;
+    }
+
+    .events-table-wrap::after {
+      content: '';
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      height: 48px;
+      background: linear-gradient(to bottom, transparent, var(--surface));
+      pointer-events: none;
+      z-index: 2;
+    }
+
+    .events-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.875rem;
+    }
+
+    .events-table thead th {
+      text-align: left;
+      font-size: 0.6875rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-muted);
+      padding: var(--space-2) var(--space-3);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+      white-space: nowrap;
+    }
+
+    .events-table tbody tr {
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+      cursor: pointer;
+      transition: background-color 0.15s ease;
+    }
+
+    .events-table tbody tr:hover {
+      background-color: rgba(255, 255, 255, 0.06);
+    }
+
+    .events-table tbody td {
+      padding: 10px var(--space-3);
+      color: var(--text);
+      white-space: nowrap;
+      vertical-align: middle;
+    }
+
+    .time-cell {
+      color: var(--text-muted);
+      font-size: 0.8125rem;
+    }
+
+    .status-dot-inline {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+
+    .status-dot-inline--green {
+      background-color: var(--green);
+    }
+
+    .status-dot-inline--red {
+      background-color: var(--red);
+    }
+
+    .latency-cell {
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .latency-cell--amber {
+      color: var(--amber);
+    }
+
+    .latency-cell--red {
+      color: var(--red);
+    }
+
+    .session-link {
+      font-family: var(--font-mono);
+      font-size: 0.8125rem;
+      color: var(--blue);
+      text-decoration: none;
+      transition: opacity 0.15s ease;
+    }
+
+    .session-link:hover {
+      opacity: 0.8;
+      text-decoration: underline;
+    }
+
+    .preview-cell {
+      max-width: 340px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      color: var(--text-muted);
+    }
+
+    .model-pill {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: var(--radius-pill);
+      background-color: rgba(255, 255, 255, 0.10);
+      color: var(--text-muted);
+      font-size: 0.6875rem;
+      font-weight: 500;
+    }
+
+    .error-pill {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: var(--radius-pill);
+      background-color: rgba(212, 106, 106, 0.12);
+      color: var(--red);
+      font-size: 0.6875rem;
+      font-weight: 500;
+    }
+
+    /* Pagination */
+    .pagination {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: var(--space-4);
+      padding-top: var(--space-3);
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+      font-size: 0.8125rem;
+      color: var(--text-muted);
+    }
+
+    .pagination-nav {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+    }
+
+    .pg-btn {
+      min-width: 28px;
+      height: 28px;
+      padding: 0 var(--space-1);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      font-size: 0.9375rem;
+      line-height: 1;
+      cursor: pointer;
+      transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+    }
+
+    .pg-btn:hover {
+      color: var(--text);
+      border-color: var(--border-strong);
+      background: var(--surface);
+    }
+
+    .pg-btn:focus-visible {
+      outline: none;
+      border-color: var(--accent);
+      color: var(--text);
+    }
+
+    .pg-btn.disabled {
+      opacity: 0.4;
+      pointer-events: none;
+      cursor: default;
+    }
+
+    /* Typeable page jumper — ecommerce style */
+    .pg-jump {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--text-muted);
+      font-size: 0.8125rem;
+    }
+
+    .pg-input {
+      width: 44px;
+      height: 28px;
+      text-align: center;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-size: 0.8125rem;
+      font-family: var(--font-mono);
+      transition: border-color 0.15s ease;
+    }
+
+    .pg-input:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+
+    /* hide the number spinner */
+    .pg-input::-webkit-outer-spin-button,
+    .pg-input::-webkit-inner-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+    }
+
+    /* ============================================================
+       PAGE LAYOUT & SIDEBAR
+       ============================================================ */
+    .page-layout {
+      display: flex;
+    }
+
+    .sidebar {
+      position: sticky;
+      top: 56px;
+      width: 220px;
+      height: calc(100vh - 56px);
+      flex-shrink: 0;
+      background-color: var(--surface);
+      border-right: 1px solid rgba(255, 255, 255, 0.14);
+      display: flex;
+      flex-direction: column;
+      padding: var(--space-3) 0;
+      overflow-y: auto;
+      z-index: 50;
+    }
+
+    .sidebar-nav {
+      list-style: none;
+      flex: 1;
+    }
+
+    .sidebar-nav li {
+      margin: 0;
+    }
+
+    .sidebar-nav a {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      height: 36px;
+      padding: 0 var(--space-3);
+      color: var(--text-muted);
+      font-size: 0.875rem;
+      text-decoration: none;
+      border-left: 3px solid transparent;
+      transition: background-color 0.15s ease, color 0.15s ease;
+    }
+
+    .sidebar-nav a:hover {
+      background-color: rgba(255, 255, 255, 0.06);
+      color: var(--text);
+    }
+
+    .sidebar-nav a.active {
+      background-color: rgba(64, 189, 75, 0.08);
+      color: var(--text);
+      border-left-color: var(--blue);
+    }
+
+    .sidebar-icon {
+      width: 16px;
+      height: 16px;
+      flex-shrink: 0;
+    }
+
+    .page-content {
+      flex: 1;
+      min-width: 0;
+      overflow-x: hidden;
+    }
+
+    /* ============================================================
+       DRAWER (Conversation detail)
+       ============================================================ */
+    .drawer-backdrop {
+      position: fixed;
+      inset: 0;
+      background-color: rgba(30, 25, 26, 0.6);
+      z-index: 200;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.2s, visibility 0.2s;
+    }
+
+    .drawer-backdrop.is-open {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    .drawer {
+      position: fixed;
+      top: 0;
+      right: 0;
+      width: 480px;
+      height: 100vh;
+      background-color: var(--surface);
+      border-left: 1px solid rgba(255, 255, 255, 0.14);
+      display: flex;
+      flex-direction: column;
+      z-index: 201;
+      transform: translateX(100%);
+      transition: transform 0.25s ease;
+    }
+
+    .drawer.is-open {
+      transform: translateX(0);
+    }
+
+    .drawer-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-3);
+      padding: var(--space-4);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+      flex-shrink: 0;
+    }
+
+    .drawer-header-title {
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--text);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .drawer-header-actions {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      flex-shrink: 0;
+    }
+
+    .drawer-subheader {
+      padding: var(--space-3) var(--space-4);
+      font-size: 0.8125rem;
+      color: var(--text-muted);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      flex-shrink: 0;
+    }
+
+    .drawer-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: var(--space-4);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-4);
+    }
+
+    .message-group {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-1);
+    }
+
+    .message-label {
+      font-size: 0.625rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+    }
+
+    .message-bubble {
+      padding: var(--space-3);
+      border-radius: var(--radius-card);
+      font-size: 0.875rem;
+      line-height: 1.5;
+      color: var(--text);
+    }
+
+    .message-bubble--user {
+      background-color: rgba(255, 255, 255, 0.10);
+    }
+
+    .message-bubble--assistant {
+      background-color: rgba(255, 255, 255, 0.06);
+      border-left: 3px solid var(--blue);
+    }
+
+    .message-bubble--error {
+      background-color: rgba(212, 106, 106, 0.08);
+      border: 1px solid rgba(212, 106, 106, 0.3);
+      color: var(--red);
+    }
+
+    .message-meta {
+      font-size: 0.6875rem;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    /* Clickable link "bubbles" rendered inline within message content.
+       Each detected URL collapses to a compact pill showing just the
+       site name (hostname) in the accent green, opening in a new tab. */
+    .msg-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      max-width: 100%;
+      padding: 2px 10px;
+      margin: 2px 4px 2px 0;
+      border-radius: var(--radius-pill);
+      background-color: color-mix(in srgb, var(--accent) 16%, transparent);
+      border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+      color: var(--accent);
+      font-size: 0.8125rem;
+      font-weight: 500;
+      line-height: 1.4;
+      text-decoration: none;
+      vertical-align: middle;
+      cursor: pointer;
+      transition: background-color 0.15s ease, border-color 0.15s ease;
+      white-space: nowrap;
+      overflow: hidden;
+    }
+    .msg-link:hover {
+      background-color: color-mix(in srgb, var(--accent) 28%, transparent);
+      border-color: var(--accent);
+      text-decoration: none;
+    }
+    .msg-link__name {
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* Highlight ring shown around the message we auto-scrolled to. */
+    .message-group.is-target {
+      position: relative;
+    }
+    .message-group.is-target > .message-bubble {
+      box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 60%, transparent);
+    }
+
+    .drawer-footer {
+      padding: var(--space-4);
+      border-top: 1px solid rgba(255, 255, 255, 0.14);
+      flex-shrink: 0;
+    }
+
+    .btn-primary {
+      padding: var(--space-2) var(--space-4);
+      border-radius: var(--radius-control);
+      background-color: var(--blue);
+      color: #fff;
+      border: none;
+      font-size: 0.875rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background-color 0.15s ease;
+    }
+
+    .btn-primary:hover {
+      background-color: color-mix(in srgb, var(--blue), black 20%);
+    }
+
+    .drawer-footer .btn-primary {
+      width: 100%;
+    }
+
+    /* ============================================================
+       ERROR DETAIL SECTION
+       Would open from the right when an error row is clicked.
+       Rendered statically below main content for visibility.
+       ============================================================ */
+    .error-detail-section {
+      background-color: var(--surface);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: var(--radius-card);
+      padding: 20px;
+    }
+
+    .error-detail-header {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+      margin-bottom: var(--space-4);
+    }
+
+    .error-detail-header h2 {
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .error-meta-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: var(--space-4);
+      margin-bottom: var(--space-4);
+      padding-bottom: var(--space-4);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .meta-item {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-1);
+    }
+
+    .meta-label {
+      font-size: 0.6875rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-muted);
+    }
+
+    .meta-value {
+      font-size: 0.875rem;
+      color: var(--text);
+    }
+
+    .error-block {
+      margin-bottom: var(--space-4);
+    }
+
+    .block-label {
+      display: block;
+      font-size: 0.6875rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-muted);
+      margin-bottom: var(--space-2);
+    }
+
+    .quote-block {
+      padding: var(--space-3) var(--space-4);
+      background-color: rgba(255, 255, 255, 0.06);
+      border-left: 3px solid var(--border);
+      border-radius: 0 var(--radius-control) var(--radius-control) 0;
+      font-size: 0.875rem;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+
+    .traceback-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: var(--space-2);
+    }
+
+    .traceback-code {
+      background-color: rgba(30, 25, 26, 0.7);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: var(--radius-control);
+      padding: var(--space-3);
+      overflow-x: auto;
+      max-height: 320px;
+      overflow-y: auto;
+    }
+
+    .traceback-code pre {
+      margin: 0;
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      line-height: 1.6;
+      color: var(--text-muted);
+      white-space: pre;
+      word-wrap: normal;
+    }
+
+    .traceback-code code {
+      font-family: inherit;
+      color: inherit;
+    }
+
+    .error-actions {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+      padding-top: var(--space-3);
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    /* ============================================================
+       RESPONSIVE
+       Collapses to single column under 768px
+       ============================================================ */
+    .heatmap-card {
+      background-color: var(--surface);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: var(--radius-card);
+      padding: 20px;
+    }
+
+    .heatmap-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      margin-bottom: var(--space-4);
+    }
+
+    .heatmap-header h2 {
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .heatmap-header p {
+      font-size: 0.8125rem;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    .heatmap-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: var(--space-3);
+    }
+
+    .topic-tile {
+      padding: var(--space-4);
+      border-radius: var(--radius-card);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      cursor: pointer;
+      transition: border-color 0.15s ease;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      min-height: 100px;
+    }
+
+    .topic-tile:hover {
+      border-color: var(--blue);
+    }
+
+    .topic-name {
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: var(--space-1);
+    }
+
+    .topic-count {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    .heatmap-note {
+      margin-top: var(--space-4);
+      font-size: 0.8125rem;
+      color: var(--text-muted);
+    }
+
+    /* ============================================================
+       SPLIT ROW & SIDE-BY-SIDE CARDS
+       ============================================================ */
+    .split-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: var(--space-4);
+    }
+
+    .frustrated-card {
+      background-color: var(--surface);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: var(--radius-card);
+      padding: 20px;
+    }
+
+    .frustrated-number {
+      font-size: 2.5rem;
+      font-weight: 600;
+      color: var(--amber);
+      line-height: 1.2;
+      margin-bottom: var(--space-2);
+    }
+
+    .frustrated-subtitle {
+      font-size: 0.8125rem;
+      color: var(--text-muted);
+      margin-bottom: var(--space-4);
+    }
+
+    .session-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-2);
+    }
+
+    .session-chip {
+      display: inline-flex;
+      align-items: center;
+      padding: var(--space-1) var(--space-2);
+      border-radius: var(--radius-pill);
+      background-color: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      color: var(--blue);
+      text-decoration: none;
+      cursor: pointer;
+      transition: background-color 0.15s ease, border-color 0.15s ease;
+    }
+
+    .session-chip:hover {
+      background-color: rgba(255, 255, 255, 0.14);
+      border-color: var(--text-muted);
+    }
+
+    .session-chip.more-chip {
+      color: var(--text-muted);
+      background-color: transparent;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      cursor: default;
+    }
+
+    .session-chip.more-chip:hover {
+      background-color: transparent;
+      border-color: rgba(255, 255, 255, 0.08);
+    }
+
+    /* ============================================================
+       ALERT SETTINGS
+       ============================================================ */
+    .alert-card {
+      background-color: var(--surface);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: var(--radius-card);
+      padding: 20px;
+    }
+
+    .alert-card > h2 {
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: var(--space-4);
+    }
+
+    .alert-section {
+      margin-bottom: var(--space-5);
+    }
+
+    .alert-section > h3 {
+      font-size: 0.8125rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-muted);
+      margin-bottom: var(--space-3);
+    }
+
+    .threshold-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-3);
+      padding: var(--space-3) 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    .threshold-label {
+      font-size: 0.875rem;
+      color: var(--text);
+      line-height: 1.5;
+    }
+
+    .threshold-input {
+      width: 48px;
+      height: 28px;
+      padding: 0 var(--space-1);
+      background-color: var(--bg);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: var(--radius-control);
+      color: var(--text);
+      font-size: 0.875rem;
+      text-align: center;
+      font-variant-numeric: tabular-nums;
+
+    }
+
+    .threshold-input:focus {
+      border-color: var(--blue);
+    }
+
+    .webhook-row {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+      padding: var(--space-3) 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    .webhook-name {
+      width: 70px;
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: var(--text);
+      flex-shrink: 0;
+    }
+
+    .webhook-input {
+      flex: 1;
+      height: 32px;
+      padding: 0 var(--space-2);
+      background-color: var(--bg);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: var(--radius-control);
+      color: var(--text);
+      font-size: 0.8125rem;
+      font-family: var(--font-mono);
+
+    }
+
+    .webhook-input::placeholder {
+      color: var(--text-muted);
+    }
+
+    .webhook-input:focus {
+      border-color: var(--blue);
+    }
+
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      padding: 2px 8px;
+      border-radius: var(--radius-pill);
+      font-size: 0.6875rem;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    .status-pill--green {
+      background-color: rgba(64, 189, 75, 0.12);
+      color: var(--green);
+      border: 1px solid rgba(64, 189, 75, 0.25);
+    }
+
+    .status-pill--amber {
+      background-color: rgba(224, 165, 58, 0.12);
+      color: var(--amber);
+      border: 1px solid rgba(224, 165, 58, 0.25);
+    }
+
+    .btn-ghost-sm.is-disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+      pointer-events: none;
+    }
+
+    .alert-history-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.8125rem;
+    }
+
+    .alert-history-table thead th {
+      text-align: left;
+      font-size: 0.6875rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-muted);
+      padding: var(--space-2) var(--space-3);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+    }
+
+    .alert-history-table tbody td {
+      padding: 10px var(--space-3);
+      color: var(--text);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      vertical-align: middle;
+    }
+
+    .alert-history-table tbody td.muted {
+      color: var(--text-muted);
+    }
+
+    /* Segmented control */
+    .segmented-control {
+      display: inline-flex;
+      background: var(--bg);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: var(--radius-control);
+      padding: 3px;
+      gap: 3px;
+    }
+    .segmented-btn {
+      flex: 1;
+      padding: 5px 14px;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-muted);
+      background: transparent;
+      border: none;
+      border-radius: calc(var(--radius-control) - 2px);
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+    }
+    .segmented-btn.is-active {
+      background: rgba(64, 189, 75, 0.15);
+      color: var(--blue);
+      font-weight: 600;
+    }
+    .segmented-btn:hover:not(.is-active) {
+      color: var(--text);
+    }
+
+    /* ============================================================
+       TIME WINDOW FILTER (Preset vs Custom radio toggle)
+       Reusable control for traffic / events / conversations cards.
+       ============================================================ */
+    .timewindow {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: var(--space-3);
+      margin-top: var(--space-4);
+      padding-top: var(--space-3);
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .timewindow-mode {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-3);
+      flex-shrink: 0;
+    }
+
+    .tw-radio {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      cursor: pointer;
+      user-select: none;
+    }
+    .tw-radio:hover { color: var(--text); }
+
+    .tw-radio input {
+      appearance: none;
+      -webkit-appearance: none;
+      width: 14px;
+      height: 14px;
+      border: 1px solid var(--border-strong);
+      border-radius: 50%;
+      background: var(--bg);
+      cursor: pointer;
+      position: relative;
+      flex-shrink: 0;
+      margin: 0;
+      transition: border-color 0.15s ease;
+    }
+    .tw-radio input:checked { border-color: var(--accent); }
+    .tw-radio input:checked::after {
+      content: '';
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--accent);
+    }
+    .tw-radio input:focus-visible {
+      outline: 1px solid var(--accent);
+      outline-offset: 2px;
+    }
+
+    /* The two panes. Only the active one is interactive. */
+    .tw-pane {
+      display: none;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: var(--space-2);
+      flex: 1;
+      min-width: 0;
+    }
+    .tw-pane.is-active { display: inline-flex; }
+    .tw-pane.is-disabled {
+      opacity: 0.4;
+      pointer-events: none;
+    }
+
+    .tw-fields {
+      display: inline-flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: var(--space-2);
+    }
+
+    .tw-field {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .tw-field-label {
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-muted);
+    }
+
+    .tw-datetime {
+      appearance: none;
+      -webkit-appearance: none;
+      background: var(--bg);
+      border: 1px solid var(--border-strong);
+      border-radius: 0;
+      padding: 8px 10px;
+      font-size: 0.875rem;
+      font-family: var(--font-mono);
+      color: var(--text);
+      width: auto;
+      min-width: 190px;
+      cursor: pointer;
+      transition: border-color 0.15s ease;
+    }
+    .tw-datetime:hover { border-color: var(--text-muted); }
+    .tw-datetime:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 1px var(--accent);
+      outline: none;
+    }
+    .tw-datetime::-webkit-calendar-picker-indicator {
+      filter: invert(0.7);
+      cursor: pointer;
+      width: 16px;
+      height: 16px;
+    }
+
+    /* Keep the From/To inputs + buttons on a single row; horizontal
+       scroll only as a last-resort fallback on very narrow screens. */
+    .tw-fields {
+      flex-wrap: nowrap;
+      overflow-x: auto;
+    }
+
+    .tw-apply {
+      padding: 8px 16px;
+      font-size: 0.8125rem;
+      font-weight: 600;
+      color: #14110F;
+      background: var(--accent);
+      border: 1px solid var(--accent);
+      border-radius: 0;
+      cursor: pointer;
+      transition: background 0.15s ease;
+    }
+    .tw-apply:hover {
+      background: #4FD15B;
+      border-color: #4FD15B;
+    }
+    .tw-apply:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    .tw-clear {
+      padding: 8px 14px;
+      font-size: 0.8125rem;
+      font-weight: 500;
+      color: var(--text-muted);
+      background: transparent;
+      border: 1px solid var(--border-strong);
+      border-radius: 0;
+      cursor: pointer;
+      transition: color 0.15s ease, border-color 0.15s ease;
+    }
+    .tw-clear:hover {
+      color: var(--text);
+      border-color: var(--border-strong);
+    }
+
+    .tw-status {
+      font-size: 0.6875rem;
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+      width: 100%;
+      margin-top: 2px;
+    }
+    .tw-status--active { color: var(--accent); }
+    .tw-status--error { color: var(--red); }
+
+    /* Highlighted error row affordance (toggled in settings) */
+    .events-table.is-highlight-errors tbody tr[data-error="true"] td:first-child {
+      box-shadow: inset 2px 0 0 var(--red);
+    }
+
+    /* Footer */
+    .site-footer {
+      padding: var(--space-4) var(--space-5);
+      text-align: center;
+      font-size: 12px;
+      color: var(--text-muted);
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    /* Modal overlay */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.6);
+      z-index: 300;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.2s, visibility 0.2s;
+    }
+    .modal-backdrop.is-open {
+      opacity: 1;
+      visibility: visible;
+      cursor: pointer;
+    }
+    .drawer-backdrop.is-open {
+      opacity: 1;
+      visibility: visible;
+      cursor: pointer;
+    }
+    .modal {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%) scale(0.96);
+      width: 480px;
+      max-width: calc(100vw - var(--space-6));
+      background: var(--surface);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: var(--radius-card);
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+      z-index: 301;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.2s, visibility 0.2s, transform 0.2s;
+      display: flex;
+      flex-direction: column;
+    }
+    .modal.is-open {
+      opacity: 1;
+      visibility: visible;
+      transform: translate(-50%, -50%) scale(1);
+    }
+    .modal-header {
+      padding: var(--space-4) var(--space-5) 0;
+    }
+    .modal-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--text);
+      margin: 0;
+    }
+    .modal-body {
+      padding: var(--space-4) var(--space-5);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-4);
+    }
+    .modal-footer {
+      padding: var(--space-3) var(--space-5) var(--space-4);
+      display: flex;
+      justify-content: flex-end;
+      gap: var(--space-3);
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .btn-ghost {
+      padding: 7px 14px;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-muted);
+      background: transparent;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: var(--radius-control);
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s, border-color 0.15s;
+    }
+    .btn-ghost:hover {
+      color: var(--text);
+      border-color: var(--border);
+      background: rgba(255, 255, 255, 0.06);
+    }
+    .btn-blue {
+      padding: 7px 16px;
+      font-size: 13px;
+      font-weight: 600;
+      color: #fff;
+      background: var(--blue);
+      border: none;
+      border-radius: var(--radius-control);
+      cursor: pointer;
+      transition: background 0.15s, transform 0.1s;
+    }
+    .btn-blue:hover {
+      background: color-mix(in srgb, var(--blue), black 20%);
+    }
+    .btn-blue:active {
+      transform: translateY(1px);
+    }
+
+    @media (max-width: 1024px) {
+      .sidebar {
+        width: 56px;
+        padding: var(--space-3) 0;
+      }
+
+      .sidebar-nav a {
+        justify-content: center;
+        padding: 0;
+        gap: 0;
+      }
+
+      .sidebar-nav .nav-label {
+        display: none;
+      }
+    }
+
+    @media (max-width: 768px) {
+      .kpi-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      .drawer {
+        width: 100vw;
+        border-left: none;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .top-nav {
+        padding: 0 var(--space-3);
+      }
+
+      .nav-search {
+        display: none;
+      }
+
+      .status-strip {
+        padding: 0 var(--space-3);
+        flex-wrap: wrap;
+        height: auto;
+        gap: var(--space-2);
+        padding-top: var(--space-2);
+        padding-bottom: var(--space-2);
+      }
+
+      .app-main {
+        padding: var(--space-3);
+      }
+
+      .kpi-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .error-meta-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .split-row {
+        grid-template-columns: 1fr;
+      }
+
+      .heatmap-grid {
+        grid-template-columns: 1fr;
+      }
+
+      /* Events table → vertical card list */
+      .events-table thead {
+        display: none;
+      }
+      .events-table tbody,
+      .events-table tr,
+      .events-table td {
+        display: block;
+        width: 100%;
+      }
+      .events-table tr {
+        background: var(--surface);
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        border-radius: var(--radius-card);
+        padding: var(--space-3);
+        margin-bottom: var(--space-3);
+      }
+      .events-table td {
+        padding: 4px 0;
+        border-bottom: none;
+        text-align: left;
+      }
+      .events-table td::before {
+        content: attr(data-label);
+        display: inline-block;
+        font-size: 11px;
+        font-weight: 500;
+        color: var(--text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+        width: 90px;
+        flex-shrink: 0;
+      }
+      .events-table td:first-child {
+        padding-top: 0;
+      }
+      .events-table td:last-child {
+        padding-bottom: 0;
+      }
+    }
+
+    /* ============================================================
+       STYLE REFINEMENT OVERRIDES — serif titles, thin outlines,
+       squared corners, warm dark theme
+       ============================================================ */
+    body {
+      font-family: var(--font-sans);
+      font-feature-settings: "ss01", "cv11";
+      letter-spacing: -0.005em;
+    }
+
+    /* Serif treatment for titles & display numbers */
+    .logo,
+    .card-header h2,
+    .events-header-left h2,
+    .heatmap-header h2,
+    .alert-card > h2,
+    .error-detail-header h2,
+    .modal-title,
+    .drawer-header-title {
+      font-family: var(--font-serif);
+      font-weight: 500;
+      letter-spacing: -0.01em;
+      font-size: 1.1rem;
+      color: var(--text);
+    }
+
+    .logo {
+      font-family: var(--font-serif);
+      font-size: 1rem;
+      font-weight: 500;
+      font-style: italic;
+      letter-spacing: -0.005em;
+    }
+
+    .kpi-number,
+    .frustrated-number {
+      font-family: var(--font-serif);
+      font-weight: 500;
+      letter-spacing: -0.02em;
+    }
+
+    .kpi-label,
+    .events-table thead th,
+    .alert-history-table thead th,
+    .meta-label,
+    .block-label,
+    .message-label,
+    .alert-section > h3 {
+      font-family: var(--font-sans);
+      font-weight: 500;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      font-size: 0.6875rem;
+      color: var(--text-muted);
+    }
+
+    /* Backgrounds & thin outlines on every box */
+    .top-nav {
+      background-color: var(--bg);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .status-strip {
+      background-color: var(--bg);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .sidebar {
+      background-color: var(--bg);
+      border-right: 1px solid var(--border);
+    }
+
+    .kpi-card,
+    .chart-card,
+    .events-card,
+    .conversations-card,
+    .heatmap-card,
+    .frustrated-card,
+    .alert-card,
+    .error-detail-section,
+    .drawer,
+    .modal {
+      background-color: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 0;
+      box-shadow: none;
+    }
+
+    .drawer { border-left: 1px solid var(--border); }
+
+    /* Form controls — squared with thin outline */
+    .nav-search input,
+    .filter-select,
+    .filter-input,
+    .threshold-input,
+    .webhook-input,
+    .traceback-code,
+    .segmented-control {
+      background-color: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 0;
+    }
+
+    .nav-search input:focus,
+    .filter-select:focus,
+    .filter-input:focus,
+    .threshold-input:focus,
+    .webhook-input:focus {
+      border-color: var(--accent);
+      box-shadow: none;
+    }
+
+    /* Pills / chips: thin outline, no fill except for accent states */
+    .env-pill,
+    .model-pill,
+    .error-pill,
+    .status-pill,
+    .session-chip {
+      border-radius: 0;
+    }
+
+    .env-pill {
+      background-color: transparent;
+      color: var(--green);
+      border: 1px solid var(--green);
+      letter-spacing: 0.14em;
+    }
+
+    .model-pill {
+      background-color: transparent;
+      color: var(--text-muted);
+      border: 1px solid var(--border);
+      padding: 2px 8px;
+      letter-spacing: 0.04em;
+    }
+
+    .error-pill {
+      background-color: transparent;
+      color: var(--red);
+      border: 1px solid var(--red);
+      letter-spacing: 0.04em;
+    }
+
+    .status-pill--green {
+      background-color: transparent;
+      color: var(--green);
+      border: 1px solid var(--green);
+    }
+    .status-pill--amber {
+      background-color: transparent;
+      color: var(--amber);
+      border: 1px solid var(--amber);
+    }
+
+    .session-chip {
+      background-color: transparent;
+      border: 1px solid var(--border);
+      color: var(--accent);
+    }
+    .session-chip:hover {
+      background-color: rgba(64, 189, 75, 0.06);
+      border-color: var(--accent);
+    }
+    .session-chip.more-chip {
+      color: var(--text-muted);
+      background: transparent;
+    }
+
+    /* Buttons — squared, thin outline */
+    .btn-primary,
+    .btn-blue {
+      background-color: var(--accent);
+      color: #14110F;
+      border-radius: 0;
+      font-weight: 600;
+      letter-spacing: 0.01em;
+      border: 1px solid var(--accent);
+    }
+    .btn-primary:hover,
+    .btn-blue:hover {
+      background-color: #4FD15B;
+      border-color: #4FD15B;
+    }
+
+    .btn-ghost,
+    .btn-ghost-sm {
+      background-color: transparent;
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      border-radius: 0;
+    }
+    .btn-ghost:hover,
+    .btn-ghost-sm:hover {
+      color: var(--text);
+      border-color: var(--border-strong);
+      background-color: rgba(255, 255, 255, 0.03);
+    }
+
+    .icon-btn,
+    .refresh-btn {
+      background-color: transparent;
+      border: 1px solid var(--border);
+      border-radius: 0;
+      color: var(--text-muted);
+    }
+    .icon-btn:hover,
+    .refresh-btn:hover {
+      color: var(--text);
+      border-color: var(--border-strong);
+      background-color: rgba(255, 255, 255, 0.03);
+    }
+
+    /* Segmented control */
+    .segmented-control button,
+    .segmented-btn {
+      border-radius: 0;
+    }
+    .segmented-control button.active,
+    .segmented-control button.is-active,
+    .segmented-btn.is-active {
+      background-color: var(--accent);
+      color: #14110F;
+      font-weight: 600;
+    }
+
+    /* Toggle switch — rectangular track, circular knob */
+    .toggle-switch {
+      border-radius: 0;
+      background-color: transparent;
+      border: 1px solid var(--border-strong);
+      width: 38px;
+      height: 20px;
+    }
+    .toggle-switch::after {
+      border-radius: 0;
+      background-color: var(--text-muted);
+      width: 12px;
+      height: 12px;
+      top: 3px;
+      left: 3px;
+    }
+    .toggle-switch[aria-checked="true"] {
+      background-color: var(--accent);
+      border-color: var(--accent);
+    }
+    .toggle-switch[aria-checked="true"]::after {
+      background-color: #14110F;
+      transform: translateX(18px);
+    }
+    .toggle-switch--green[aria-checked="true"] {
+      background-color: var(--accent);
+    }
+
+    /* KPI cards: tighter, more refined */
+    .kpi-card { padding: var(--space-5); }
+    .kpi-number { font-size: 2.25rem; line-height: 1.1; }
+    .kpi-delta--green { color: var(--green); }
+    .kpi-delta--red { color: var(--red); }
+
+    /* Chart bars in accent green */
+    .bar {
+      background-color: var(--accent);
+      border-radius: 0;
+      opacity: 0.85;
+    }
+    .bar:hover { opacity: 1; }
+
+    .chart-svg .gridline {
+      stroke: var(--border);
+    }
+    .chart-svg text { fill: var(--text-muted); }
+
+    /* Tooltips */
+    .tooltip {
+      border-radius: 0;
+      background-color: #1F1B1C;
+      border: 1px solid var(--border-strong);
+      font-family: var(--font-mono);
+      font-size: 0.6875rem;
+    }
+
+    /* Sidebar nav */
+    .sidebar-nav a.active {
+      background-color: transparent;
+      color: var(--text);
+      border-left-color: var(--accent);
+    }
+    .sidebar-nav a:hover {
+      background-color: rgba(255, 255, 255, 0.03);
+    }
+
+    /* Tables — flatter, thin dividers */
+    .events-table tbody tr {
+      border-bottom: 1px solid var(--border);
+    }
+    .events-table tbody tr:hover {
+      background-color: rgba(255, 255, 255, 0.03);
+    }
+    .events-table tbody td { color: var(--text); }
+    .events-table thead th,
+    .alert-history-table thead th {
+      border-bottom: 1px solid var(--border-strong);
+    }
+    .alert-history-table tbody td { border-bottom: 1px solid var(--border); }
+
+    /* Session links use accent */
+    .session-link { color: var(--accent); }
+
+    /* Latency / status semantic colors */
+    .latency-cell--amber { color: var(--amber); }
+    .latency-cell--red { color: var(--red); }
+
+    /* Heatmap tiles squared */
+    .topic-tile {
+      border-radius: 0;
+      border: 1px solid var(--border);
+    }
+    .topic-tile:hover { border-color: var(--accent); }
+
+    /* Message bubbles squared */
+    .message-bubble {
+      border-radius: 0;
+      background-color: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--border);
+    }
+    .message-bubble--user {
+      background-color: rgba(255, 255, 255, 0.06);
+    }
+    .message-bubble--assistant {
+      background-color: transparent;
+      border-left: 2px solid var(--accent);
+    }
+    .message-bubble--error {
+      background-color: transparent;
+      border: 1px solid var(--red);
+      color: var(--red);
+    }
+
+    /* Modal/drawer */
+    .modal { box-shadow: 0 30px 80px rgba(0,0,0,0.55); }
+    .modal-backdrop, .drawer-backdrop {
+      background-color: rgba(15, 12, 13, 0.7);
+    }
+
+    /* Footer */
+    .site-footer {
+      border-top: 1px solid var(--border);
+    }
+
+    /* Focus ring uses accent */
+    *:focus-visible {
+      outline: 1px solid var(--accent);
+      outline-offset: 2px;
+    }
+
+    /* Quote block & traceback */
+    .quote-block {
+      background-color: rgba(255, 255, 255, 0.03);
+      border-left: 2px solid var(--accent);
+      border-radius: 0;
+      color: var(--text);
+      font-family: var(--font-serif);
+      font-style: italic;
+      font-size: 0.95rem;
+    }
+    .traceback-code {
+      background-color: #1F1B1C;
+    }
+    .traceback-code pre { color: var(--text-muted); }
+
+    /* Live dot + status dot remain green pulses */
+    .status-dot, .live-dot { background-color: var(--green); }
+
+    /* Number meta value alignment */
+    .meta-value { font-family: var(--font-mono); font-size: 0.8125rem; }
+    .meta-value.num.latency-cell--red { color: var(--red); }
+
+    /* Small text smoothing */
+    .status-text strong { font-weight: 600; color: var(--text); }
+
+    /* Refresh spin */
+    @keyframes refresh-spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(-360deg); }
+    }
+    .refresh-btn svg { transition: transform 0.2s ease; }
+    .refresh-btn.is-spinning svg {
+      animation: refresh-spin 0.7s cubic-bezier(0.4, 0.0, 0.2, 1);
+    }
+    .refresh-btn.is-spinning {
+      color: var(--accent);
+      border-color: var(--accent);
+    }
+    .refresh-glyph {
+      display: inline-block;
+      transform-origin: 50% 50%;
+      will-change: transform;
+    }
+    .btn-ghost-sm.is-spinning .refresh-glyph {
+      animation: refresh-spin 0.7s cubic-bezier(0.4, 0.0, 0.2, 1);
+    }
+    .btn-ghost-sm.is-spinning {
+      color: var(--accent);
+      border-color: var(--accent);
+    }
+    .refresh-meta .num.is-flash {
+      color: var(--accent);
+      transition: color 0.4s ease;
+    }
+
+    /* Thin sleek scrollbars */
+    * {
+      scrollbar-width: thin;
+      scrollbar-color: rgba(255, 255, 255, 0.14) transparent;
+    }
+    *::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    *::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    *::-webkit-scrollbar-thumb {
+      background-color: rgba(255, 255, 255, 0.14);
+      border-radius: 0;
+      transition: background-color 0.15s ease;
+    }
+    *::-webkit-scrollbar-thumb:hover {
+      background-color: var(--accent);
+    }
+    *::-webkit-scrollbar-corner {
+      background: transparent;
+    }
+    /* Slightly wider for the page-level scrollbar */
+    html::-webkit-scrollbar,
+    body::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+
+    /* Settings modal layout */
+    .settings-modal {
+      width: 560px;
+      max-height: calc(100vh - 48px);
+    }
+    .settings-body {
+      gap: var(--space-5);
+      max-height: calc(100vh - 200px);
+      overflow-y: auto;
+    }
+    .settings-group {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-2);
+    }
+    .settings-group-label {
+      font-family: var(--font-sans);
+      font-size: 0.6875rem;
+      font-weight: 600;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      padding-bottom: var(--space-2);
+      border-bottom: 1px solid var(--border);
+    }
+    .settings-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-4);
+      padding: var(--space-2) 0;
+    }
+    .settings-row-label {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-width: 0;
+    }
+    .settings-row-title {
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: var(--text);
+    }
+    .settings-row-desc {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      line-height: 1.4;
+    }
+
+    /* Accent swatches */
+    .accent-swatches {
+      display: flex;
+      gap: var(--space-2);
+      flex-shrink: 0;
+    }
+    .accent-swatch {
+      width: 28px;
+      height: 28px;
+      border: 1px solid var(--border);
+      cursor: pointer;
+      padding: 0;
+      position: relative;
+      transition: transform 0.1s ease;
+    }
+    .accent-swatch:hover {
+      transform: scale(1.08);
+    }
+    .accent-swatch.is-selected {
+      outline: 2px solid var(--text);
+      outline-offset: 2px;
+    }
+    .accent-swatch.is-selected::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2314110F' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'><polyline points='20 6 9 17 4 12'/></svg>") center/14px no-repeat;
+    }
+
+    /* Toast for settings saved */
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      background-color: var(--surface);
+      color: var(--text);
+      border: 1px solid var(--accent);
+      padding: 10px 16px;
+      font-size: 0.8125rem;
+      font-weight: 500;
+      z-index: 400;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s, transform 0.2s;
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+    }
+    .toast.is-visible {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+    .toast-dot {
+      width: 6px;
+      height: 6px;
+      background-color: var(--accent);
+      border-radius: 50%;
+    }
+
+    /* Compact density on events table */
+    .events-table.is-compact tbody td {
+      padding-top: 5px;
+      padding-bottom: 5px;
+    }
+
+    /* Sidebar Settings link cursor */
+    .sidebar-nav a[data-settings-trigger] { cursor: pointer; }
+
+    /* Topic threads drawer rows */
+    .topic-drawer .drawer-header-title {
+      white-space: normal;
+      overflow: visible;
+      text-overflow: clip;
+      font-size: 1.15rem;
+    }
+    .topic-drawer .drawer-body { gap: 0; padding: 0; }
+    .topic-thread {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      column-gap: var(--space-3);
+      row-gap: 4px;
+      align-items: center;
+      padding: var(--space-3) var(--space-4);
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+      transition: background-color 0.12s ease;
+    }
+    .topic-thread:hover {
+      background-color: rgba(255, 255, 255, 0.03);
+    }
+    .topic-thread__status {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background-color: var(--green);
+    }
+    .topic-thread__status--error { background-color: var(--red); }
+    .topic-thread__session {
+      font-family: var(--font-mono);
+      font-size: 0.8125rem;
+      color: var(--accent);
+    }
+    .topic-thread__meta {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      font-variant-numeric: tabular-nums;
+      text-align: right;
+      white-space: nowrap;
+    }
+    .topic-thread__preview {
+      grid-column: 2 / span 2;
+      font-size: 0.8125rem;
+      color: var(--text-muted);
+      line-height: 1.45;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+    }
+    .topic-drawer-summary {
+      display: flex;
+      gap: var(--space-4);
+      align-items: baseline;
+    }
+    .topic-drawer-summary strong {
+      font-family: var(--font-serif);
+      font-size: 1.4rem;
+      font-weight: 500;
+      color: var(--text);
+    }
+    .topic-drawer-summary span {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+    .topic-thread-empty {
+      padding: var(--space-5) var(--space-4);
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 0.8125rem;
+    }
+
+    /* Make heatmap tiles obviously interactive */
+    .topic-tile:focus-visible {
+      outline-offset: -2px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ============================================================
+       TOP NAVIGATION
+       ============================================================ -->
+  <header class="top-nav" role="banner">
+    <div class="nav-left">
+      <span class="logo">School AI Chatbot</span>
+      <!-- Environment pill: swap inner text and class for STAGING -->
+      <span class="env-pill">PROD</span>
+    </div>
+
+    <div class="nav-search">
+      <input
+        type="text"
+        placeholder="Search messages, session IDs, errors…"
+        aria-label="Search messages, session IDs, errors"
+      />
+      <span class="kbd-hint">/</span>
+    </div>
+
+    <div class="nav-right">
+      <button class="icon-btn" data-settings-trigger aria-label="Settings" title="Settings">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- ============================================================
+       SYSTEM STATUS STRIP
+       ============================================================ -->
+  <div class="page-layout">
+    <!-- ============================================================
+         SIDEBAR
+         ============================================================ -->
+    <aside class="sidebar" aria-label="Main navigation">
+      <nav>
+        <ul class="sidebar-nav">
+          <li>
+            <a href="#" class="active" aria-current="page" data-view="overview">
+              <svg class="sidebar-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+              <span class="nav-label">Overview</span>
+            </a>
+          </li>
+          <li>
+            <a href="#" data-view="events">
+              <svg class="sidebar-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
+              <span class="nav-label">Events</span>
+            </a>
+          </li>
+          <li>
+            <a href="#" data-settings-trigger>
+              <svg class="sidebar-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+              <span class="nav-label">Settings</span>
+            </a>
+          </li>
+        </ul>
+      </nav>
+    </aside>
+
+    <div class="page-content">
+      <div class="status-strip" role="status" aria-live="polite">
+    <div class="status-cluster">
+      <span class="status-dot" aria-hidden="true"></span>
+      <span class="status-text"><strong>All systems operational</strong></span>
+    </div>
+
+    <div class="refresh-meta">
+      <span class="num refresh-stamp" data-since="2">Last refreshed: 2 seconds ago</span>
+      <button class="refresh-btn refresh-trigger" aria-label="Refresh data" title="Refresh">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polyline points="23 4 23 10 17 10"></polyline>
+          <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+        </svg>
+      </button>
+      <span id="connectionStatusPill" style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:0;font-size:0.6875rem;font-weight:600;text-transform:uppercase;letter-spacing:0.03em;background-color:transparent;color:var(--text-muted);border:1px solid var(--border);">Disconnected</span>
+    </div>
+
+  </div>
+
+  <!-- ============================================================
+       MAIN CONTENT
+       ============================================================ -->
+  <main class="app-main" id="app">
+    <!-- ============================================================
+         KPI ROW
+         ============================================================ -->
+    <section class="kpi-section" data-view="overview" aria-label="Key metrics">
+      <div class="kpi-grid">
+        <!-- Messages Today -->
+        <article class="kpi-card">
+          <div class="kpi-label">Messages today</div>
+          <div class="kpi-value-row">
+            <span class="kpi-number num" id="kpi-messages">—</span>
+          </div>
+          <div class="kpi-delta" id="kpi-messages-delta">—</div>
+        </article>
+
+        <!-- Errors Today -->
+        <article class="kpi-card">
+          <div class="kpi-label">Unanswered today</div>
+          <div class="kpi-value-row">
+            <span class="kpi-dot kpi-dot--red" aria-hidden="true"></span>
+            <span class="kpi-number num" id="kpi-errors">—</span>
+          </div>
+          <div class="kpi-delta" id="kpi-errors-delta">—</div>
+        </article>
+
+        <!-- Unique sessions -->
+        <article class="kpi-card">
+          <div class="kpi-label" id="kpi-sessions-label">Unique sessions</div>
+          <div class="kpi-value-row">
+            <span class="kpi-number num" id="kpi-sessions">—</span>
+          </div>
+          <div class="kpi-delta" id="kpi-sessions-delta">—</div>
+        </article>
+
+        <!-- Avg response time -->
+        <article class="kpi-card">
+          <div class="kpi-label">Avg response time</div>
+          <div class="kpi-value-row">
+            <span class="kpi-number num" id="kpi-latency">—</span>
+          </div>
+          <div class="kpi-delta" id="kpi-latency-delta">—</div>
+        </article>
+
+        <!-- Answer quality -->
+        <article class="kpi-card">
+          <div class="kpi-label">Answer quality</div>
+          <div class="kpi-value-row">
+            <span class="kpi-number num" id="kpi-quality">—</span>
+          </div>
+          <div class="kpi-delta" id="kpi-quality-delta">—</div>
+        </article>
+
+        <!-- Unanswered rate -->
+        <article class="kpi-card">
+          <div class="kpi-label">Unanswered rate</div>
+          <div class="kpi-value-row">
+            <span class="kpi-dot kpi-dot--red" aria-hidden="true"></span>
+            <span class="kpi-number num" id="kpi-idk-rate">—</span>
+          </div>
+          <div class="kpi-delta" id="kpi-idk-rate-delta">—</div>
+        </article>
+      </div>
+    </section>
+
+    <!-- ============================================================
+         TRAFFIC CHART
+         ============================================================ -->
+    <section class="chart-card" data-view="overview" aria-label="Traffic" id="trafficCard">
+      <div class="card-header">
+        <div>
+          <h2 id="trafficTitle">Traffic — last 24 hours</h2>
+          <p id="trafficSubtitle">Messages per hour</p>
+        </div>
+        <div class="segmented-control traffic-range-row" id="trafficRange" role="group" aria-label="Time range">
+          <button class="active" data-range="24h" aria-pressed="true">24h</button>
+          <button data-range="7d" aria-pressed="false">7d</button>
+          <button data-range="30d" aria-pressed="false">30d</button>
+          <button class="range-custom-btn" id="trafficCustomBtn" type="button" aria-pressed="false" title="Custom date/time window">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+            <span>Custom range</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="chart-wrapper">
+        <svg class="chart-svg" id="trafficSvg" viewBox="0 0 1000 300" preserveAspectRatio="none">
+          <g id="trafficGridlines">
+            <line class="gridline" x1="68" y1="260" x2="932" y2="260" />
+            <line class="gridline" x1="68" y1="200" x2="932" y2="200" />
+            <line class="gridline" x1="68" y1="140" x2="932" y2="140" />
+            <line class="gridline" x1="68" y1="80" x2="932" y2="80" />
+            <line class="gridline" x1="68" y1="20" x2="932" y2="20" />
+          </g>
+          <g id="trafficYLabels"></g>
+          <g id="trafficXLabels"></g>
+        </svg>
+
+        <div class="bars-overlay" id="trafficBars"></div>
+      </div>
+
+      <div class="chart-footer" id="trafficFooter"></div>
+
+      <!-- Time window filter (Preset vs Custom) -->
+      <div class="timewindow" data-tw="traffic">
+        <div class="timewindow-mode">
+          <label class="tw-radio">
+            <input type="radio" name="tw-traffic-mode" value="preset" checked>
+            Preset
+          </label>
+          <label class="tw-radio">
+            <input type="radio" name="tw-traffic-mode" value="custom">
+            Custom window
+          </label>
+        </div>
+
+        <div class="tw-pane tw-pane--preset is-active" data-pane="preset">
+          <span class="tw-status">Use the range buttons above.</span>
+        </div>
+
+        <div class="tw-pane tw-pane--custom is-disabled" data-pane="custom">
+          <div class="tw-fields">
+            <span class="tw-field">
+              <span class="tw-field-label">From</span>
+              <input type="datetime-local" class="tw-datetime" data-tw-from aria-label="From date and time">
+            </span>
+            <span class="tw-field">
+              <span class="tw-field-label">To</span>
+              <input type="datetime-local" class="tw-datetime" data-tw-to aria-label="To date and time">
+            </span>
+            <button class="tw-apply" data-tw-apply>Apply</button>
+            <button class="tw-clear" data-tw-clear>Clear</button>
+          </div>
+          <span class="tw-status" data-tw-status>Choose a From and To, then Apply.</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================
+         RECENT EVENTS
+         Showing 12 representative rows of 50 total
+         ============================================================ -->
+    <section class="events-card" data-view="events" aria-label="Recent events">
+      <div class="events-header">
+        <div class="events-header-left">
+          <h2>Recent events</h2>
+          <p>Last 50 interactions</p>
+        </div>
+        <div class="events-header-right">
+          <span class="live-indicator" role="status">
+            <span class="live-dot" aria-hidden="true"></span>
+            Live
+          </span>
+          <button class="btn-ghost-sm refresh-trigger"><span class="refresh-glyph">↻</span> Refresh</button>
+          <button class="btn-ghost-sm">Filters</button>
+        </div>
+      </div>
+
+      <div class="filter-bar" id="eventsFilters">
+        <select class="filter-select" id="filter-date" aria-label="Date range">
+          <option value="today">Today</option>
+          <option value="yesterday">Yesterday</option>
+          <option value="7d">Last 7 days</option>
+          <option value="custom">Custom…</option>
+        </select>
+        <select class="filter-select" id="filter-status" aria-label="Status">
+          <option value="all">All statuses</option>
+          <option value="success">Success only</option>
+          <option value="error">Errors only</option>
+        </select>
+        <input
+          class="filter-input"
+          id="filter-search"
+          type="text"
+          placeholder="Search message previews…"
+          aria-label="Search messages"
+        />
+        <select class="filter-select" id="filter-model" aria-label="Model">
+          <option value="all">All models</option>
+          <option value="qwen/qwen3.5-397b-a17b">Qwen3.5 397B</option>
+        </select>
+        <button class="clear-filters" id="clear-filters">Clear filters</button>
+      </div>
+
+      <!-- Time window filter (Preset vs Custom) -->
+      <div class="timewindow" data-tw="events">
+        <div class="timewindow-mode">
+          <label class="tw-radio">
+            <input type="radio" name="tw-events-mode" value="preset" checked>
+            Preset
+          </label>
+          <label class="tw-radio">
+            <input type="radio" name="tw-events-mode" value="custom">
+            Custom window
+          </label>
+        </div>
+
+        <div class="tw-pane tw-pane--preset is-active" data-pane="preset">
+          <span class="tw-status">Showing the 50 most recent events.</span>
+        </div>
+
+        <div class="tw-pane tw-pane--custom is-disabled" data-pane="custom">
+          <div class="tw-fields">
+            <span class="tw-field">
+              <span class="tw-field-label">From</span>
+              <input type="datetime-local" class="tw-datetime" data-tw-from aria-label="From date and time">
+            </span>
+            <span class="tw-field">
+              <span class="tw-field-label">To</span>
+              <input type="datetime-local" class="tw-datetime" data-tw-to aria-label="To date and time">
+            </span>
+            <button class="tw-apply" data-tw-apply>Apply</button>
+            <button class="tw-clear" data-tw-clear>Clear</button>
+          </div>
+          <span class="tw-status" data-tw-status>Choose a From and To, then Apply.</span>
+        </div>
+      </div>
+
+      <div class="events-table-wrap">
+        <table class="events-table" id="eventsTable">
+          <thead>
+            <tr>
+              <th scope="col">Time</th>
+              <th scope="col">Status</th>
+              <th scope="col">Session</th>
+              <th scope="col">Message preview</th>
+              <th scope="col">Model</th>
+              <th scope="col">Error</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- Populated dynamically by renderEventsTable() -->
+          </tbody>
+        </table>
+      </div>
+
+      <div class="pagination">
+        <span id="eventsCount">Showing 1–12 of 50</span>
+        <nav class="pagination-nav" aria-label="Events pagination">
+          <button type="button" class="pg-btn" id="eventsPrev" aria-label="Previous page">‹</button>
+          <span class="pg-jump">
+            <input type="number" class="pg-input" id="eventsPageInput" value="1" min="1" aria-label="Jump to page" inputmode="numeric">
+            <span>/ <span id="eventsPageTotal">1</span></span>
+          </span>
+          <button type="button" class="pg-btn" id="eventsNext" aria-label="Next page">›</button>
+        </nav>
+      </div>
+    </section>
+
+    <!-- ============================================================
+         RECENT CONVERSATIONS
+         ============================================================ -->
+    <section class="conversations-card" data-view="events" aria-label="Recent conversations">
+      <div class="events-header">
+        <div class="events-header-left">
+          <h2>Recent conversations</h2>
+          <p>Last 50 active threads</p>
+        </div>
+        <div class="events-header-right">
+          <span class="live-indicator" role="status">
+            <span class="live-dot" aria-hidden="true"></span>
+            Live
+          </span>
+          <button class="btn-ghost-sm refresh-trigger"><span class="refresh-glyph">↻</span> Refresh</button>
+          <button class="btn-ghost-sm">Filters</button>
+        </div>
+      </div>
+
+      <!-- Time window filter (Preset vs Custom) -->
+      <div class="timewindow" data-tw="conv">
+        <div class="timewindow-mode">
+          <label class="tw-radio">
+            <input type="radio" name="tw-conv-mode" value="preset" checked>
+            Preset
+          </label>
+          <label class="tw-radio">
+            <input type="radio" name="tw-conv-mode" value="custom">
+            Custom window
+          </label>
+        </div>
+
+        <div class="tw-pane tw-pane--preset is-active" data-pane="preset">
+          <span class="tw-status">Showing the 50 most recently active threads.</span>
+        </div>
+
+        <div class="tw-pane tw-pane--custom is-disabled" data-pane="custom">
+          <div class="tw-fields">
+            <span class="tw-field">
+              <span class="tw-field-label">From</span>
+              <input type="datetime-local" class="tw-datetime" data-tw-from aria-label="From date and time">
+            </span>
+            <span class="tw-field">
+              <span class="tw-field-label">To</span>
+              <input type="datetime-local" class="tw-datetime" data-tw-to aria-label="To date and time">
+            </span>
+            <button class="tw-apply" data-tw-apply>Apply</button>
+            <button class="tw-clear" data-tw-clear>Clear</button>
+          </div>
+          <span class="tw-status" data-tw-status>Choose a From and To, then Apply.</span>
+        </div>
+      </div>
+
+      <div class="events-table-wrap">
+        <table class="events-table">
+          <thead>
+            <tr>
+              <th scope="col">Session</th>
+              <th scope="col">Status</th>
+              <th scope="col" style="text-align:right">Messages</th>
+              <th scope="col">Last active</th>
+              <th scope="col">Topic preview</th>
+              <th scope="col">Model</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- Populated dynamically by renderConversationsTable() -->
+          </tbody>
+        </table>
+      </div>
+
+      <div class="pagination">
+        <span id="conversationsCount">Showing 1–0 of 0</span>
+        <nav class="pagination-nav" aria-label="Conversations pagination">
+          <button type="button" class="pg-btn" id="conversationsPrev" aria-label="Previous page">‹</button>
+          <span class="pg-jump">
+            <input type="number" class="pg-input" id="conversationsPageInput" value="1" min="1" aria-label="Jump to page" inputmode="numeric">
+            <span>/ <span id="conversationsPageTotal">1</span></span>
+          </span>
+          <button type="button" class="pg-btn" id="conversationsNext" aria-label="Next page">›</button>
+        </nav>
+      </div>
+    </section>
+
+    <!-- 
+      ERROR DETAIL DRAWER
+      Would open from the right when an error row is clicked.
+      Rendered statically below main content for visibility.
+    -->
+    <section class="error-detail-section" data-view="events" aria-label="Error detail" style="display:none;">
+      <div class="error-detail-header">
+        <h2>Error detail</h2>
+        <span class="error-pill" id="errorDetailType">—</span>
+      </div>
+
+      <div class="error-meta-grid">
+        <div class="meta-item">
+          <span class="meta-label">Timestamp</span>
+          <span class="meta-value num" id="errorDetailTimestamp">—</span>
+        </div>
+        <div class="meta-item">
+          <span class="meta-label">Session</span>
+          <span class="meta-value mono" id="errorDetailSession">—</span>
+        </div>
+        <div class="meta-item">
+          <span class="meta-label">Model</span>
+          <span class="meta-value" id="errorDetailModel">—</span>
+        </div>
+      </div>
+
+      <div class="error-block">
+        <span class="block-label">User message that triggered it</span>
+        <div class="quote-block" id="errorDetailMessage"></div>
+      </div>
+
+      <div class="error-block">
+        <span class="block-label">Bot response</span>
+        <div class="quote-block" id="errorDetailTraceback"></div>
+      </div>
+
+      <div class="error-actions">
+        <button class="btn-primary">Mark as investigated</button>
+        <button class="btn-ghost-sm">Dismiss</button>
+      </div>
+    </section>
+
+    <!-- ============================================================
+         FAQ HEATMAP
+         ============================================================ -->
+    <section class="heatmap-card" data-view="overview" aria-label="FAQ heatmap last 7 days">
+      <div class="heatmap-header">
+        <div>
+          <h2>FAQ heatmap — last 7 days</h2>
+          <p>Most common topics, clustered by keywords</p>
+        </div>
+      </div>
+
+      <div class="heatmap-grid" id="heatmapGrid">
+        <!-- Populated dynamically by renderTopicTiles() -->
+      </div>
+
+      <div class="heatmap-note">
+        Click a topic to view related conversation threads →
+      </div>
+    </section>
+
+    <!-- ============================================================
+         FRUSTRATED USERS
+         ============================================================ -->
+    <section data-view="overview" aria-label="Frustrated users">
+      <article class="frustrated-card">
+        <h2 style="font-size:1rem;font-weight:600;color:var(--text);margin-bottom:var(--space-2);">Frustrated users</h2>
+        <div class="frustrated-number num" id="frustratedCount">—</div>
+        <p class="frustrated-subtitle">Sessions flagged for repeated questions or unanswered responses</p>
+        <div class="session-chips" id="frustratedChips"></div>
+      </article>
+    </section>
+
+    <!-- ============================================================
+         ALERT SETTINGS
+         ============================================================ -->
+  </main>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       CONVERSATION DRAWER
+       Statically open for mockup. Overlay with backdrop dim.
+       ============================================================ -->
+  <div class="drawer-backdrop"></div>
+  <div class="drawer" role="dialog" aria-label="Conversation detail">
+    <div class="drawer-header">
+      <h3 class="drawer-header-title">Conversation</h3>
+      <div class="drawer-header-actions">
+        <button class="icon-btn" aria-label="Copy session ID" title="Copy">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+          </svg>
+        </button>
+        <button class="icon-btn" aria-label="Close drawer" title="Close">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="drawer-subheader"></div>
+
+    <div class="drawer-body" id="drawerBody">
+      <!-- Populated dynamically by renderDrawerMessages() -->
+    </div>
+
+    <div class="drawer-footer">
+    </div>
+  </div>
+
+  <!-- ============================================================
+       TOPIC THREADS DRAWER
+       Opens when an FAQ heatmap tile is clicked.
+       ============================================================ -->
+  <div class="drawer-backdrop" data-drawer="topic"></div>
+  <div class="drawer topic-drawer" id="topicDrawer" role="dialog" aria-label="Topic threads" aria-modal="true">
+    <div class="drawer-header">
+      <div class="drawer-header-title" id="topicDrawerTitle">Topic</div>
+      <div class="drawer-header-actions">
+        <button class="icon-btn" aria-label="Close drawer" title="Close">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+    </div>
+    <div class="drawer-subheader" id="topicDrawerSubheader">
+      Loading threads…
+    </div>
+    <div class="drawer-body" id="topicDrawerBody">
+      <!-- Thread rows injected by JS -->
+    </div>
+  </div>
+
+  <!-- ============================================================
+       SETTINGS MODAL
+       ============================================================ -->
+  <div class="modal-backdrop" data-modal="settings"></div>
+  <div class="modal settings-modal" id="settingsModal" role="dialog" aria-label="Settings" aria-modal="true">
+    <div class="modal-header">
+      <h2 class="modal-title">Settings</h2>
+    </div>
+    <div class="modal-body settings-body">
+
+      <div class="settings-group">
+        <div class="settings-group-label">Appearance</div>
+        <div class="settings-row">
+          <div class="settings-row-label">
+            <span class="settings-row-title">Accent color</span>
+            <span class="settings-row-desc">Applied to highlights, links, buttons</span>
+          </div>
+          <div class="accent-swatches" role="radiogroup" aria-label="Accent color">
+            <button class="accent-swatch" data-accent="#40BD4B" style="background:#40BD4B" aria-label="Green" role="radio"></button>
+            <button class="accent-swatch" data-accent="#E0A53A" style="background:#E0A53A" aria-label="Amber" role="radio"></button>
+            <button class="accent-swatch" data-accent="#5B8DEF" style="background:#5B8DEF" aria-label="Blue" role="radio"></button>
+            <button class="accent-swatch" data-accent="#D46A6A" style="background:#D46A6A" aria-label="Red" role="radio"></button>
+          </div>
+        </div>
+      </div>
+
+      <div class="settings-group">
+        <div class="settings-group-label">Data refresh</div>
+        <div class="settings-row">
+          <div class="settings-row-label">
+            <span class="settings-row-title">Auto-refresh interval</span>
+            <span class="settings-row-desc">How often live data reloads</span>
+          </div>
+          <div class="segmented-control" id="settings-interval" role="group" aria-label="Auto-refresh interval">
+            <button class="segmented-btn" data-interval="5">5s</button>
+            <button class="segmented-btn" data-interval="10">10s</button>
+            <button class="segmented-btn" data-interval="30">30s</button>
+            <button class="segmented-btn" data-interval="0">Off</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="settings-group">
+        <div class="settings-group-label">Events view</div>
+        <div class="settings-row">
+          <div class="settings-row-label">
+            <span class="settings-row-title">Row density</span>
+            <span class="settings-row-desc">Vertical padding of table rows</span>
+          </div>
+          <div class="segmented-control" id="settings-density" role="group" aria-label="Row density">
+            <button class="segmented-btn" data-density="comfortable">Comfortable</button>
+            <button class="segmented-btn" data-density="compact">Compact</button>
+          </div>
+        </div>
+        <div class="settings-row">
+          <div class="settings-row-label">
+            <span class="settings-row-title">Show errors only by default</span>
+            <span class="settings-row-desc">Pre-filters the events table on load</span>
+          </div>
+          <button class="toggle-switch toggle-switch--green" id="settings-errors-only" role="switch" aria-checked="false" aria-label="Show errors only by default"></button>
+        </div>
+      </div>
+
+      <div class="settings-group">
+        <div class="settings-group-label">Data &amp; display</div>
+        <div class="settings-row">
+          <div class="settings-row-label">
+            <span class="settings-row-title">Rows per page</span>
+            <span class="settings-row-desc">Events table page size</span>
+          </div>
+          <div class="segmented-control" id="settings-page-size" role="group" aria-label="Rows per page">
+            <button class="segmented-btn" data-page-size="10">10</button>
+            <button class="segmented-btn" data-page-size="20">20</button>
+            <button class="segmented-btn" data-page-size="50">50</button>
+          </div>
+        </div>
+        <div class="settings-row">
+          <div class="settings-row-label">
+            <span class="settings-row-title">Default time range</span>
+            <span class="settings-row-desc">Which preset the dashboard opens on</span>
+          </div>
+          <div class="segmented-control" id="settings-default-range" role="group" aria-label="Default time range">
+            <button class="segmented-btn" data-default-range="24h">24h</button>
+            <button class="segmented-btn" data-default-range="7d">7d</button>
+            <button class="segmented-btn" data-default-range="30d">30d</button>
+          </div>
+        </div>
+        <div class="settings-row">
+          <div class="settings-row-label">
+            <span class="settings-row-title">Relative timestamps</span>
+            <span class="settings-row-desc">Show "2h ago" instead of absolute times in the events table</span>
+          </div>
+          <button class="toggle-switch toggle-switch--green" id="settings-relative" role="switch" aria-checked="true" aria-label="Relative timestamps"></button>
+        </div>
+        <div class="settings-row">
+          <div class="settings-row-label">
+            <span class="settings-row-title">Highlight error rows</span>
+            <span class="settings-row-desc">Add a red edge to error rows for quick scanning</span>
+          </div>
+          <button class="toggle-switch toggle-switch--green" id="settings-highlight" role="switch" aria-checked="true" aria-label="Highlight error rows"></button>
+        </div>
+        <div class="settings-row">
+          <div class="settings-row-label">
+            <span class="settings-row-title">Live refresh within window</span>
+            <span class="settings-row-desc">When on, new data arriving on auto-refresh is still narrowed to the active custom window (default off = window narrows only the current view)</span>
+          </div>
+          <button class="toggle-switch toggle-switch--green" id="settings-keep-filters" role="switch" aria-checked="false" aria-label="Live refresh within window"></button>
+        </div>
+      </div>
+
+      <div class="settings-group">
+        <div class="settings-group-label">Privacy &amp; alerts</div>
+        <div class="settings-row">
+          <div class="settings-row-label">
+            <span class="settings-row-title">Sound on new error</span>
+            <span class="settings-row-desc">Play a subtle chime when an error event arrives</span>
+          </div>
+          <button class="toggle-switch toggle-switch--green" id="settings-sound" role="switch" aria-checked="false" aria-label="Sound on new error"></button>
+        </div>
+      </div>
+
+    </div>
+    <div class="modal-footer">
+      <button class="btn-ghost" data-settings-action="cancel">Cancel</button>
+      <button class="btn-blue" data-settings-action="save">Save changes</button>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       CONNECTION SETUP MODAL
+       Appears on first load when no backend is configured.
+       ============================================================ -->
+  <!-- Footer -->
+  <footer class="site-footer">
+    School AI Chatbot · Live Dashboard
+  </footer>
+
+  <!-- Backend URL — baked so the static-hosted dashboard reaches the Flask API -->
+  <script>
+    window.__DASHBOARD_CONFIG__ = { apiBase: "" }; // EDIT ME: "" = same origin as the Flask server; set your chatbot API host when the dashboard is hosted separately (e.g. on Vercel)
+  </script>
+
+  <script>
+    (function () {
+      'use strict';
+
+      // Load persisted settings early so other code (renderEventsTable, bindTimeWindow)
+      // can read them.
+      try {
+        const raw = localStorage.getItem('dashboard.settings');
+        if (raw) window._settings = JSON.parse(raw);
+      } catch (e) {}
+
+      // Pagination state
+      let eventsPage = 1;
+      let eventsLimit = 20;
+      let conversationsPage = 1;
+      let conversationsLimit = 20;
+
+      // Currently-selected traffic preset ('24h' | '7d' | '30d').
+      // Tracked explicitly so the chart can re-render correctly even while
+      // a custom window is active (the "Custom range" button is NOT a preset).
+      let currentTrafficPreset = '24h';
+
+      // API base URL — read from the baked dashboard config
+      const API_BASE = (window.__DASHBOARD_CONFIG__ && window.__DASHBOARD_CONFIG__.apiBase) || '';
+
+      // Helper: Wrapper for fetch
+      function apiFetch(url, options) {
+        options = options || {};
+        return fetch(url, options);
+      }
+
+      // Helper: Format ISO timestamp to human-readable
+      function formatTimestamp(iso) {
+        if (!iso) return '';
+        try {
+          const d = new Date(iso);
+          const now = new Date();
+          const diffMs = now - d;
+          const diffMins = Math.floor(diffMs / 60000);
+          const diffHours = Math.floor(diffMs / 3600000);
+          const diffDays = Math.floor(diffMs / 86400000);
+
+          if (diffMins < 1) return 'just now';
+          if (diffMins < 60) return diffMins + 'm ago';
+          if (diffHours < 24) return diffHours + 'h ago';
+          if (diffDays < 7) return diffDays + 'd ago';
+
+          return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+        } catch (e) {
+          return iso;
+        }
+      }
+
+      // Helper: Show connection error banner
+      function showConnectionError(msg) {
+        let banner = document.getElementById('connectionErrorBanner');
+        if (!banner) {
+          banner = document.createElement('div');
+          banner.id = 'connectionErrorBanner';
+          banner.style.cssText = 'position:fixed;top:56px;left:0;right:0;z-index:150;background:rgba(212,106,106,0.15);border-bottom:1px solid var(--red);color:var(--red);padding:12px 24px;font-size:0.875rem;font-weight:500;';
+          document.body.appendChild(banner);
+        }
+        banner.textContent = msg || 'Backend unreachable. Check your connection settings.';
+        banner.style.display = 'block';
+      }
+
+      // Helper: Hide connection error banner
+      function hideConnectionError() {
+        const banner = document.getElementById('connectionErrorBanner');
+        if (banner) banner.style.display = 'none';
+      }
+
+      // Helper: Update connection status pill
+      function updateConnectionStatus(connected) {
+        const pill = document.getElementById('connectionStatusPill');
+        if (!pill) return;
+        if (connected) {
+          pill.textContent = 'Connected';
+          pill.style.color = 'var(--green)';
+          pill.style.borderColor = 'var(--green)';
+        } else {
+          pill.textContent = 'Disconnected';
+          pill.style.color = 'var(--red)';
+          pill.style.borderColor = 'var(--red)';
+        }
+      }
+
+      // ============================================================
+      // INTERACTIVITY HELPERS
+      // Minimal vanilla JS for tab switching, panel open/close,
+      // toggle states. No frameworks.
+      // ============================================================
+
+      async function loadDashboardData(range) {
+        const url = range ? API_BASE + '/api/dashboard?range=' + encodeURIComponent(range) : API_BASE + '/api/dashboard';
+        const res = await apiFetch(url);
+        if (res.status === 401) {
+          showConnectionError('Authentication failed. Check your credentials.');
+          return;
+        }
+        if (!res.ok) {
+          showConnectionError('Backend error: ' + res.status);
+          throw new Error('Dashboard fetch failed: ' + res.status);
+        }
+        hideConnectionError();
+        updateConnectionStatus(true);
+        const data = await res.json();
+        if (range === '24h' && data.hourly_traffic) {
+          window._trafficData = data.hourly_traffic;
+        }
+        if (range === '7d' && data.daily_traffic) {
+          window._trafficData7d = data.daily_traffic;
+        }
+        if (range === '30d' && data.daily_traffic) {
+          window._trafficData30d = data.daily_traffic;
+        }
+        if (data.recent_events) {
+          window._recentEvents = data.recent_events;
+        }
+        return data;
+      }
+
+      function updateKPIs(data) {
+        const kpis = data && data.kpis ? data.kpis : {};
+
+        const msgs = document.getElementById('kpi-messages');
+        if (msgs) msgs.textContent = Number(kpis.total_chats || 0).toLocaleString();
+
+        const errors = document.getElementById('kpi-errors');
+        if (errors) errors.textContent = Number(kpis.error_count || 0).toLocaleString();
+
+        const sessionsLabel = document.getElementById('kpi-sessions-label');
+        if (sessionsLabel) sessionsLabel.textContent = 'Unique sessions';
+
+        const sessions = document.getElementById('kpi-sessions');
+        if (sessions) sessions.textContent = Number(kpis.unique_sessions || 0).toLocaleString();
+
+        // Avg response time — format to s/ms; show placeholder until any timed response exists.
+        const latencyEl = document.getElementById('kpi-latency');
+        if (latencyEl) {
+          const ms = Number(kpis.avg_latency_ms || 0);
+          latencyEl.textContent = ms >= 1000
+            ? (ms / 1000).toFixed(2) + 's'
+            : (ms > 0 ? Math.round(ms) + 'ms' : '—');
+        }
+
+        // Answer quality — faithfulness score as a %, tinted by band.
+        const qualityEl = document.getElementById('kpi-quality');
+        const qualityDelta = document.getElementById('kpi-quality-delta');
+        if (qualityEl) {
+          const mean = Number(kpis.mean_faithfulness || 0);
+          qualityEl.textContent = (kpis.scored_count > 0) ? Math.round(mean * 100) + '%' : '—';
+          qualityEl.style.color = mean >= 0.8 ? 'var(--green)'
+            : mean >= 0.5 ? 'var(--amber)'
+            : (kpis.scored_count > 0 ? 'var(--red)' : '');
+        }
+        if (qualityDelta) {
+          const scored = Number(kpis.scored_count || 0);
+          const unfaith = Number(kpis.unfaithful_rate_pct || 0);
+          qualityDelta.textContent = scored > 0
+            ? unfaith.toFixed(1) + '% unfaithful · ' + scored + ' scored'
+            : 'Not yet scored';
+          qualityDelta.className = 'kpi-delta';
+        }
+
+        // Unanswered rate — the same fallback/"I don't know" rate, as a %.
+        const idkEl = document.getElementById('kpi-idk-rate');
+        if (idkEl) idkEl.textContent = Number(kpis.error_rate_pct || 0).toFixed(1) + '%';
+
+        ['kpi-messages-delta', 'kpi-errors-delta', 'kpi-sessions-delta',
+         'kpi-latency-delta', 'kpi-idk-rate-delta'].forEach(id => {
+          const el = document.getElementById(id);
+          if (el) {
+            el.textContent = '—';
+            el.className = 'kpi-delta';
+          }
+        });
+      }
+
+      async function pollHealth() {
+        try {
+          const res = await apiFetch(API_BASE + '/health');
+          const data = await res.json();
+          const dot = document.querySelector('.status-dot');
+          const text = document.querySelector('.status-text strong');
+          if (data.status === 'ok' && data.database === 'loaded') {
+            if (dot) { dot.style.backgroundColor = 'var(--green)'; dot.style.animation = 'pulse-green 2s ease-in-out infinite'; }
+            if (text) text.textContent = 'All systems operational';
+            hideConnectionError();
+            updateConnectionStatus(true);
+          } else {
+            if (dot) { dot.style.backgroundColor = 'var(--red)'; dot.style.animation = 'none'; }
+            if (text) text.textContent = 'System degraded';
+          }
+        } catch (e) {
+          const dot = document.querySelector('.status-dot');
+          const text = document.querySelector('.status-text strong');
+          if (dot) { dot.style.backgroundColor = 'var(--red)'; dot.style.animation = 'none'; }
+          if (text) text.textContent = 'System degraded';
+          showConnectionError('Backend unreachable. Check your connection settings.');
+          updateConnectionStatus(false);
+        }
+      }
+
+      async function loadConversations() {
+        try {
+          const res = await apiFetch(API_BASE + '/api/conversations');
+          if (res.status === 401) { showConnectionError('Authentication failed. Check your credentials.'); return; }
+          if (!res.ok) throw new Error('Conversations fetch failed: ' + res.status);
+          hideConnectionError();
+          updateConnectionStatus(true);
+          const data = await res.json();
+          const conversations = Array.isArray(data) ? data : (data.conversations || []);
+          window._conversations = conversations;
+          renderConversationsTable(getConversationsInWindow());
+        } catch (err) {
+          showConnectionError('Failed to load conversations.');
+          updateConnectionStatus(false);
+        }
+      }
+
+      function updateConversationsPagination(total, page, limit) {
+        const countEl = document.getElementById('conversationsCount');
+        const prevEl = document.getElementById('conversationsPrev');
+        const nextEl = document.getElementById('conversationsNext');
+        const inputEl = document.getElementById('conversationsPageInput');
+        const totalEl = document.getElementById('conversationsPageTotal');
+
+        const maxPage = Math.max(1, Math.ceil(total / limit));
+
+        const start = total === 0 ? 0 : (page - 1) * limit + 1;
+        const end = Math.min(page * limit, total);
+
+        if (countEl) {
+          if (total === 0) {
+            countEl.textContent = 'Showing 0 of 0';
+          } else {
+            countEl.textContent = 'Showing ' + start + '–' + end + ' of ' + total;
+          }
+        }
+
+        if (prevEl) {
+          prevEl.classList.toggle('disabled', page <= 1);
+        }
+
+        if (nextEl) {
+          nextEl.classList.toggle('disabled', page * limit >= total);
+        }
+
+        // Sync the typeable jumper (don't clobber the field while the user
+        // is still editing it — only update when it doesn't match the page).
+        if (inputEl) {
+          inputEl.max = maxPage;
+          if (document.activeElement !== inputEl || Number(inputEl.value) !== page) {
+            inputEl.value = page;
+          }
+        }
+        if (totalEl) totalEl.textContent = maxPage;
+      }
+
+      function updateEventsPagination(total, page, limit) {
+        const countEl = document.getElementById('eventsCount');
+        const prevEl = document.getElementById('eventsPrev');
+        const nextEl = document.getElementById('eventsNext');
+        const inputEl = document.getElementById('eventsPageInput');
+        const totalEl = document.getElementById('eventsPageTotal');
+
+        const maxPage = Math.max(1, Math.ceil(total / limit));
+
+        const start = total === 0 ? 0 : (page - 1) * limit + 1;
+        const end = Math.min(page * limit, total);
+
+        if (countEl) {
+          if (total === 0) {
+            countEl.textContent = 'Showing 0 of 0';
+          } else {
+            countEl.textContent = 'Showing ' + start + '–' + end + ' of ' + total;
+          }
+        }
+
+        if (prevEl) {
+          prevEl.classList.toggle('disabled', page <= 1);
+        }
+
+        if (nextEl) {
+          nextEl.classList.toggle('disabled', page * limit >= total);
+        }
+
+        if (inputEl) {
+          inputEl.max = maxPage;
+          if (document.activeElement !== inputEl || Number(inputEl.value) !== page) {
+            inputEl.value = page;
+          }
+        }
+        if (totalEl) totalEl.textContent = maxPage;
+      }
+
+      function renderConversationsTable(conversations) {
+        const tbody = document.querySelector('.conversations-card .events-table tbody');
+        if (!tbody) return;
+
+        tbody.innerHTML = '';
+
+        const total = conversations ? conversations.length : 0;
+        if (total === 0) {
+          tbody.innerHTML = '<tr class="events-empty-row"><td colspan="6" style="text-align:center;padding:32px 0;color:var(--text-muted);font-size:0.875rem;">No conversations found.</td></tr>';
+          updateConversationsPagination(0, 1, conversationsLimit);
+          return;
+        }
+
+        const maxPage = Math.max(1, Math.ceil(total / conversationsLimit));
+        if (conversationsPage > maxPage) conversationsPage = maxPage;
+
+        const start = (conversationsPage - 1) * conversationsLimit;
+        const end = start + conversationsLimit;
+        const paged = conversations.slice(start, end);
+
+        paged.forEach(conv => {
+          const isError = conv.status === 'error';
+          const statusClass = isError ? 'status-dot-inline--red' : 'status-dot-inline--green';
+          const statusLabel = isError ? 'Error' : 'Success';
+          const sessionId = escapeHtml((conv.session_id || '').slice(0, 8));
+          const preview = escapeHtml(conv.topic_preview || '');
+          const model = escapeHtml(conv.model || '');
+
+          const tr = document.createElement('tr');
+          tr.innerHTML =
+            '<td data-label="Session"><a href="#" class="session-link" data-session-id="' + escapeHtml(conv.session_id || '') + '">' + sessionId + '</a></td>' +
+            '<td data-label="Status"><span class="status-dot-inline ' + statusClass + '" aria-label="' + statusLabel + '"></span></td>' +
+            '<td data-label="Messages" class="latency-cell num">' + Number(conv.message_count || 0).toLocaleString() + '</td>' +
+            '<td data-label="Last active" class="time-cell">' + formatTimestamp(conv.last_active) + '</td>' +
+            '<td data-label="Topic preview" class="preview-cell">' + preview + '</td>' +
+            '<td data-label="Model">' + (model ? '<span class="model-pill">' + model + '</span>' : '') + '</td>';
+          tbody.appendChild(tr);
+        });
+
+        updateConversationsPagination(total, conversationsPage, conversationsLimit);
+      }
+
+      async function loadErrorDetail(eventId) {
+        try {
+          const res = await apiFetch(API_BASE + '/api/events/' + encodeURIComponent(eventId));
+          if (res.status === 401) { showConnectionError('Authentication failed.'); return; }
+          if (!res.ok) throw new Error('Error detail fetch failed: ' + res.status);
+          hideConnectionError();
+          const data = await res.json();
+          populateErrorDetail(data);
+        } catch (err) {
+          showConnectionError('Failed to load error details.');
+        }
+      }
+
+      function populateErrorDetail(data) {
+        const section = document.querySelector('.error-detail-section');
+        if (!section) return;
+
+        const typeEl = document.getElementById('errorDetailType');
+        const tsEl = document.getElementById('errorDetailTimestamp');
+        const sessionEl = document.getElementById('errorDetailSession');
+        const modelEl = document.getElementById('errorDetailModel');
+        const msgEl = document.getElementById('errorDetailMessage');
+        const tracebackEl = document.getElementById('errorDetailTraceback');
+
+        if (typeEl) typeEl.textContent = escapeHtml(data.error_type || data.error || 'Error');
+        if (tsEl) tsEl.textContent = escapeHtml(data.timestamp || '');
+        if (sessionEl) sessionEl.textContent = escapeHtml((data.session_id || '').slice(0, 8));
+        if (modelEl) modelEl.textContent = escapeHtml(data.model || '');
+        if (msgEl) msgEl.textContent = escapeHtml(data.full_user_message || data.user_message_preview || '');
+        // Show the bot's own reply (no Python traceback exists in the logs).
+        if (tracebackEl) tracebackEl.textContent = escapeHtml(data.error_message || data.full_bot_response || '');
+
+        section.style.display = '';
+        section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+
+      async function loadSessionDrawer(sessionId, targetTimestamp) {
+        const drawerBody = document.getElementById('drawerBody');
+        const drawerTitle = document.querySelector('.drawer-header-title');
+        const drawerSub = document.querySelector('.drawer-subheader');
+
+        if (drawerTitle) drawerTitle.textContent = 'Conversation · ' + escapeHtml((sessionId || '').slice(0, 8));
+        if (drawerSub) drawerSub.textContent = 'Loading…';
+        if (drawerBody) drawerBody.innerHTML = '<div style="padding:24px;color:var(--text-muted);font-size:0.875rem;">Loading messages…</div>';
+
+        try {
+          const res = await apiFetch(API_BASE + '/api/dashboard/sessions/' + encodeURIComponent(sessionId));
+          if (res.status === 401) { showConnectionError('Authentication failed.'); return; }
+          if (!res.ok) throw new Error('Session fetch failed: ' + res.status);
+          hideConnectionError();
+          const data = await res.json();
+
+          if (drawerTitle) drawerTitle.textContent = 'Conversation · ' + escapeHtml((data.session_id || sessionId || '').slice(0, 8));
+          if (drawerSub) {
+            const parts = [];
+            if (data.start_time) parts.push('Started ' + escapeHtml(data.start_time));
+            if (data.message_count != null) parts.push(Number(data.message_count).toLocaleString() + ' messages');
+            if (data.model) parts.push(escapeHtml(data.model));
+            if (data.tokens) parts.push(Number(data.tokens).toLocaleString() + ' tokens');
+            drawerSub.textContent = parts.join(' · ') || '';
+          }
+
+          renderDrawerMessages(data.messages || [], targetTimestamp);
+        } catch (err) {
+          if (drawerBody) drawerBody.innerHTML = '<div style="padding:24px;color:var(--text-muted);font-size:0.875rem;">Failed to load messages.</div>';
+        }
+      }
+
+      function renderDrawerMessages(messages, targetTimestamp) {
+        const drawerBody = document.getElementById('drawerBody');
+        if (!drawerBody) return;
+        drawerBody.innerHTML = '';
+
+        if (!messages || messages.length === 0) {
+          drawerBody.innerHTML = '<div style="padding:24px;color:var(--text-muted);font-size:0.875rem;">No messages in this conversation.</div>';
+          return;
+        }
+
+        // Normalize an ISO/"YYYY-MM-DD HH:MM:SS" timestamp down to a
+        // second-resolution numeric value for matching across sources.
+        function tsKey(v) {
+          if (!v) return NaN;
+          const d = new Date(String(v).replace(' ', 'T'));
+          const t = isNaN(d.getTime()) ? Date.parse(v) : d.getTime();
+          return isNaN(t) ? NaN : Math.floor(t / 1000);
+        }
+        const targetKey = tsKey(targetTimestamp);
+        let targetGroupEl = null;
+        // If no exact match, fall back to the user turn nearest (<=) the
+        // target time — i.e. the message that was clicked in the events table.
+        let fallbackEl = null;
+        let fallbackDelta = Infinity;
+
+        messages.forEach((msg, idx) => {
+          const role = msg.role || '';
+          const isUser = role === 'user';
+          const isError = role === 'error';
+          const bubbleClass = isError ? 'message-bubble--error' : (isUser ? 'message-bubble--user' : 'message-bubble--assistant');
+          const label = isError ? '' : (isUser ? 'User' : 'Assistant');
+          const content = linkifyContent(msg.content || '');
+          const metaParts = [];
+          if (msg.timestamp) metaParts.push(escapeHtml(msg.timestamp));
+          const meta = metaParts.join(' · ');
+
+          const group = document.createElement('div');
+          group.className = 'message-group';
+          group.setAttribute('data-idx', String(idx));
+          if (msg.timestamp) group.setAttribute('data-ts', String(tsKey(msg.timestamp)));
+          group.innerHTML =
+            (label ? '<span class="message-label">' + label + '</span>' : '') +
+            '<div class="message-bubble ' + bubbleClass + '">' + content + '</div>' +
+            (meta ? '<div class="message-meta">' + meta + '</div>' : '');
+          drawerBody.appendChild(group);
+
+          if (!isNaN(targetKey) && msg.timestamp) {
+            const msgKey = tsKey(msg.timestamp);
+            if (msgKey === targetKey) {
+              targetGroupEl = group;
+            } else if (isUser && msgKey <= targetKey) {
+              const delta = targetKey - msgKey;
+              if (delta < fallbackDelta) { fallbackDelta = delta; fallbackEl = group; }
+            }
+          }
+        });
+
+        // Autoscroll to the message matching the clicked event. The drawer
+        // is animating open, so wait a tick for layout to settle first.
+        const focusEl = targetGroupEl || fallbackEl;
+        if (focusEl) {
+          focusEl.classList.add('is-target');
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              focusEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            });
+          });
+        } else if (!isNaN(targetKey)) {
+          // No timestamp match at all — scroll to the most recent message
+          // so the user lands somewhere sensible instead of the top.
+          const last = drawerBody.lastElementChild;
+          if (last) last.scrollIntoView({ behavior: 'smooth', block: 'end' });
+        }
+      }
+
+      async function loadTopics() {
+        const grid = document.getElementById('heatmapGrid');
+        const card = document.querySelector('.heatmap-card');
+        try {
+          const res = await apiFetch(API_BASE + '/api/dashboard/topics');
+          if (res.status === 401) { showConnectionError('Authentication failed.'); return; }
+          if (res.status === 404) {
+            if (grid) grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:32px;color:var(--text-muted);font-size:0.875rem;">Topics unavailable.</div>';
+            return;
+          }
+          if (!res.ok) throw new Error('Topics fetch failed: ' + res.status);
+          hideConnectionError();
+          updateConnectionStatus(true);
+          const data = await res.json();
+          const topics = Array.isArray(data) ? data : (data.topics || []);
+          if (topics.length === 0) {
+            if (grid) grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:32px;color:var(--text-muted);font-size:0.875rem;">No topic data available.</div>';
+            return;
+          }
+          window._topics = topics;
+          renderTopicTiles(topics);
+        } catch (err) {
+          if (grid) grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:32px;color:var(--text-muted);font-size:0.875rem;">Topics unavailable.</div>';
+          showConnectionError('Failed to load topics.');
+          updateConnectionStatus(false);
+        }
+      }
+
+      function renderTopicTiles(topics) {
+        const grid = document.getElementById('heatmapGrid');
+        if (!grid) return;
+        grid.innerHTML = '';
+
+        const sliced = topics.slice(0, 15);
+        const maxCount = Math.max(...sliced.map(t => Number(t.count || 0)), 1);
+
+        sliced.forEach(topic => {
+          const count = Number(topic.count || 0);
+          const opacity = Math.max(0.10, Math.min(0.44, 0.10 + (count / maxCount) * 0.34));
+          const tile = document.createElement('div');
+          tile.className = 'topic-tile';
+          tile.style.backgroundColor = 'rgba(64, 189, 75, ' + opacity.toFixed(2) + ')';
+          tile.innerHTML =
+            '<span class="topic-name">' + escapeHtml(topic.topic || '') + '</span>' +
+            '<span class="topic-count">' + count.toLocaleString() + ' conversations</span>';
+          grid.appendChild(tile);
+        });
+      }
+
+      async function loadTopicThreads(topic) {
+        const drawer = document.getElementById('topicDrawer');
+        const backdrop = document.querySelector('.drawer-backdrop[data-drawer="topic"]');
+        const titleEl = document.getElementById('topicDrawerTitle');
+        const subEl = document.getElementById('topicDrawerSubheader');
+        const bodyEl = document.getElementById('topicDrawerBody');
+        if (!drawer || !bodyEl) return;
+
+        titleEl.textContent = escapeHtml(topic || 'Topic');
+        subEl.innerHTML = '<div class="topic-drawer-summary"><strong>—</strong><span>Loading threads…</span></div>';
+        bodyEl.innerHTML = '<div style="padding:24px;color:var(--text-muted);font-size:0.875rem;">Loading threads…</div>';
+        drawer.classList.add('is-open');
+        backdrop?.classList.add('is-open');
+
+        try {
+          const res = await apiFetch(API_BASE + '/api/dashboard/topics/' + encodeURIComponent(topic) + '/threads');
+          if (res.status === 401) { showConnectionError('Authentication failed.'); return; }
+          if (!res.ok) throw new Error('Threads fetch failed: ' + res.status);
+          hideConnectionError();
+          const data = await res.json();
+          const threads = Array.isArray(data) ? data : (data.threads || []);
+
+          const totalConversations = (window._topics || []).find(t => t.topic === topic)?.count || threads.length;
+          subEl.innerHTML = '<div class="topic-drawer-summary"><strong>' + Number(totalConversations).toLocaleString() + '</strong><span>conversations in the last 7 days</span></div>';
+
+          if (threads.length === 0) {
+            bodyEl.innerHTML = '<div class="topic-thread-empty">No threads found for this topic.</div>';
+            return;
+          }
+
+          bodyEl.innerHTML = threads.map(t => {
+            const sid = escapeHtml(t.sid || t.session_id || '').slice(0, 8);
+            const isError = t.isError || t.status === 'error';
+            const messages = t.messages != null ? t.messages : (t.message_count || 0);
+            const timeLabel = escapeHtml(t.timeLabel || t.last_active || '');
+            const preview = escapeHtml(t.preview || t.topic_preview || '');
+            return (
+              '<div class="topic-thread" data-session="' + sid + '">' +
+                '<span class="topic-thread__status' + (isError ? ' topic-thread__status--error' : '') + '"></span>' +
+                '<a href="#" class="topic-thread__session session-link" data-session-id="' + escapeHtml(t.sid || t.session_id || '') + '">' + sid + '</a>' +
+                '<span class="topic-thread__meta">' + Number(messages).toLocaleString() + ' msg · ' + timeLabel + '</span>' +
+                '<div class="topic-thread__preview">' + preview + '</div>' +
+              '</div>'
+            );
+          }).join('');
+        } catch (err) {
+          bodyEl.innerHTML = '<div class="topic-thread-empty">Thread data unavailable for this topic.</div>';
+        }
+      }
+
+      // Frustrated users data is derived from the same conversation logs
+      // that feed the daily analysis report.
+      async function loadAnalysis() {
+        try {
+          const res = await apiFetch(API_BASE + '/api/dashboard/analysis');
+          if (res.status === 401) { showConnectionError('Authentication failed.'); return; }
+          if (!res.ok) throw new Error('Analysis fetch failed: ' + res.status);
+          hideConnectionError();
+          updateConnectionStatus(true);
+          const data = await res.json();
+          renderFrustrated(data.frustrated || {});
+        } catch (err) {
+          showConnectionError('Failed to load analysis data.');
+          updateConnectionStatus(false);
+        }
+      }
+
+      function renderFrustrated(frustrated) {
+        const numEl = document.getElementById('frustratedCount');
+        if (numEl) numEl.textContent = Number(frustrated.count || 0).toLocaleString();
+
+        const chips = document.getElementById('frustratedChips');
+        if (!chips) return;
+        const ids = Array.isArray(frustrated.session_ids) ? frustrated.session_ids : [];
+        if (ids.length === 0) {
+          chips.innerHTML = '<span class="session-chip more-chip">None flagged</span>';
+          return;
+        }
+        const shown = ids.slice(0, 3);
+        let html = shown.map(sid =>
+          '<a href="#" class="session-chip session-link" data-session-id="' + escapeHtml(sid) + '">' +
+          escapeHtml(sid.slice(0, 8)) + '</a>'
+        ).join('');
+        if (ids.length > 3) {
+          html += '<span class="session-chip more-chip">+ ' + (ids.length - 3) + ' more</span>';
+        }
+        chips.innerHTML = html;
+      }
+
+      function escapeHtml(str) {
+        if (typeof str !== 'string') return '';
+        return str.replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
+      }
+
+      // Renders message text safely: escapes HTML, then turns any URL into a
+      // clickable accent-green "bubble" pill that shows only the site name
+      // (hostname) rather than the raw URL. Bare URLs and www. prefixes are
+      // detected; an href is always constructed with an explicit scheme.
+      function linkifyContent(text) {
+        const safe = escapeHtml(text);
+        // URL pattern: optional scheme, optional www., then host.tld[/path]
+        const urlRe = /(?:https?:\/\/)?(?:www\.)?[A-Za-z0-9][A-Za-z0-9-]*[A-Za-z0-9](?:\.[A-Za-z0-9][A-Za-z0-9-]*[A-Za-z0-9])+(?:\/[^\s]*)?/g;
+        return safe.replace(urlRe, (match) => {
+          const withScheme = /^https?:\/\//i.test(match) ? match : 'https://' + match;
+          let host;
+          try { host = new URL(withScheme).hostname.replace(/^www\./i, ''); }
+          catch (e) { host = match; }
+          return '<a href="' + escapeHtml(withScheme) + '" class="msg-link" target="_blank" rel="noopener noreferrer" title="' + escapeHtml(match) + '">' +
+                 '<span class="msg-link__name">' + escapeHtml(host) + '</span></a>';
+        });
+      }
+
+      function renderEventsTable(events) {
+        const tbody = document.querySelector('#eventsTable tbody');
+        if (!tbody) return;
+
+        tbody.innerHTML = '';
+
+        if (!events || events.length === 0) {
+          tbody.innerHTML = '<tr class="events-empty-row"><td colspan="6" style="text-align:center;padding:32px 0;color:var(--text-muted);font-size:0.875rem;">No events match your filters.</td></tr>';
+          return;
+        }
+
+        const relative = !(window._settings && window._settings.relativeTimestamps === false);
+        events.forEach(event => {
+          const isError = event.status === 'error';
+          const statusClass = isError ? 'status-dot-inline--red' : 'status-dot-inline--green';
+          const statusLabel = isError ? 'Error' : 'Success';
+          const sessionId = escapeHtml((event.session_id || '').slice(0, 8));
+          const preview = escapeHtml(event.user_message_preview || event.bot_response_preview || '');
+          const model = escapeHtml(event.model || '');
+          const error = escapeHtml(event.error_type || event.error || '');
+          const timeDisplay = relative ? formatTimestamp(event.timestamp) : (event.timestamp || '');
+
+          const tr = document.createElement('tr');
+          tr.setAttribute('data-id', event.id || '');
+          if (isError) tr.setAttribute('data-error', 'true');
+          tr.innerHTML =
+            '<td data-label="Time" class="time-cell">' + escapeHtml(timeDisplay) + '</td>' +
+            '<td data-label="Status"><span class="status-dot-inline ' + statusClass + '" aria-label="' + statusLabel + '"></span></td>' +
+            '<td data-label="Session"><a href="#" class="session-link" data-session-id="' + escapeHtml(event.session_id || '') + '">' + sessionId + '</a></td>' +
+            '<td data-label="Message preview" class="preview-cell">' + preview + '</td>' +
+            '<td data-label="Model">' + (model ? '<span class="model-pill">' + model + '</span>' : '') + '</td>' +
+            '<td data-label="Error">' + (error ? '<span class="error-pill">' + error + '</span>' : '') + '</td>';
+          tbody.appendChild(tr);
+        });
+      }
+
+      // ============================================================
+      // TIME WINDOW FILTER HELPERS (client-side)
+      // Each scope ('traffic' | 'events' | 'conv') may have an active
+      // custom window: { from: Date, to: Date } or null (= preset).
+      // ============================================================
+      window._twState = window._twState || { traffic: null, events: null, conv: null };
+
+      // Event timestamps arrive as "YYYY-MM-DD HH:MM:SS"; conversation
+      // last_active arrives as ISO. This parses both into a Date.
+      function parseFlexibleTs(value) {
+        if (!value) return null;
+        const d = new Date(value);
+        if (!isNaN(d.getTime())) return d;
+        // "YYYY-MM-DD HH:MM:SS" -> ISO-friendly
+        const d2 = new Date(String(value).replace(' ', 'T'));
+        return isNaN(d2.getTime()) ? null : d2;
+      }
+
+      function getTimeWindow(scope) {
+        return (window._twState && window._twState[scope]) || null;
+      }
+
+      function setTimeWindow(scope, tw) {
+        if (!window._twState) window._twState = { traffic: null, events: null, conv: null };
+        window._twState[scope] = tw;
+        // Persist so the selection survives a full page reload.
+        try {
+          const out = {};
+          ['traffic', 'events', 'conv'].forEach(k => {
+            const w = window._twState[k];
+            out[k] = w ? { from: w.from ? w.from.toISOString() : null, to: w.to ? w.to.toISOString() : null } : null;
+          });
+          localStorage.setItem('dashboard.timewindows', JSON.stringify(out));
+        } catch (e) { /* ignore quota / private mode */ }
+      }
+
+      // Restore any saved time windows on load. Each window is validated:
+      // invalid dates, or a window where from > to, are discarded so a stale
+      // or corrupt entry can't silently mask out all the data.
+      function restoreTimeWindows() {
+        try {
+          const raw = localStorage.getItem('dashboard.timewindows');
+          if (!raw) return;
+          const saved = JSON.parse(raw);
+          if (!window._twState) window._twState = { traffic: null, events: null, conv: null };
+          let dirty = false;
+          ['traffic', 'events', 'conv'].forEach(k => {
+            if (!saved || !saved[k] || (!saved[k].from && !saved[k].to)) return;
+            const from = saved[k].from ? new Date(saved[k].from) : null;
+            const to = saved[k].to ? new Date(saved[k].to) : null;
+            const fromOk = !from || !isNaN(from.getTime());
+            const toOk = !to || !isNaN(to.getTime());
+            // Reject reversed or unparseable windows entirely.
+            if (!fromOk || !toOk || (from && to && from > to)) {
+              saved[k] = null;   // drop the bad entry
+              dirty = true;
+              return;
+            }
+            window._twState[k] = { from: from, to: to };
+          });
+          // Re-persist the cleaned state so discarded entries don't linger.
+          if (dirty) {
+            try { localStorage.setItem('dashboard.timewindows', JSON.stringify(saved)); } catch (e) {}
+          }
+        } catch (e) { /* ignore */ }
+      }
+
+      function eventInWindow(event, win) {
+        if (!win) return true;
+        const ts = parseFlexibleTs(event.timestamp);
+        if (!ts) return false;
+        if (win.from && ts < win.from) return false;
+        if (win.to && ts > win.to) return false;
+        return true;
+      }
+
+      function convInWindow(conv, win) {
+        if (!win) return true;
+        const ts = parseFlexibleTs(conv.last_active);
+        if (!ts) return false;
+        if (win.from && ts < win.from) return false;
+        if (win.to && ts > win.to) return false;
+        return true;
+      }
+
+      // Conversations filtered by the active conv window (or full set).
+      function getConversationsInWindow() {
+        const all = window._conversations || [];
+        const win = getTimeWindow('conv');
+        return win ? all.filter(c => convInWindow(c, win)) : all;
+      }
+
+      // Format an active window for status text: "Jun 18 09:00 → Jun 19 17:00"
+      function formatWindowRange(from, to) {
+        const fmt = (d) => d ? d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
+        return fmt(from) + ' → ' + fmt(to);
+      }
+
+      // Detect a "stale window" condition: a custom time window is active but
+      // it leaves the dashboard with no visible data anywhere (events, traffic,
+      // conversations). This is the most common cause of "data not available"
+      // — usually a persisted window from a previous session that no longer
+      // overlaps the current data. Returns true if everything is empty AND a
+      // window is set on at least one scope.
+      function isStaleWindowCondition() {
+        const scopes = ['traffic', 'events', 'conv'];
+        const anyWindow = scopes.some(s => {
+          const w = getTimeWindow(s);
+          return w && (w.from || w.to);
+        });
+        if (!anyWindow) return false;
+        // Events visible under the events window (or all if no events window).
+        const evWin = getTimeWindow('events');
+        const eventCount = (window._recentEvents || []).filter(e => !evWin || eventInWindow(e, evWin)).length;
+        // Conversations visible under the conv window.
+        const convCount = getConversationsInWindow().length;
+        // Traffic: count buckets that survive the traffic window mask.
+        const twWin = getTimeWindow('traffic');
+        const today = new Date();
+        const trafficVisible = (window._trafficData || []).filter((b, i) => {
+          if (!twWin) return true;
+          const d = new Date(today); d.setHours(i, 0, 0, 0);
+          if (twWin.from && d < twWin.from) return false;
+          if (twWin.to && d > twWin.to) return false;
+          return true;
+        }).reduce((a, b) => a + (b.count || 0), 0);
+        return eventCount === 0 && convCount === 0 && trafficVisible === 0;
+      }
+
+      // Show a dismissible banner explaining a window is hiding all data,
+      // with a button to clear every scope's window.
+      function showStaleWindowBanner() {
+        let banner = document.getElementById('staleWindowBanner');
+        if (!banner) {
+          banner = document.createElement('div');
+          banner.id = 'staleWindowBanner';
+          banner.style.cssText = 'position:fixed;top:56px;left:0;right:0;z-index:150;background:rgba(224,165,58,0.15);border-bottom:1px solid var(--amber);color:var(--amber);padding:10px 24px;font-size:0.8125rem;font-weight:500;display:flex;align-items:center;gap:12px;justify-content:center;';
+          document.body.appendChild(banner);
+        }
+        banner.innerHTML = '<span>A saved time window is hiding all data. Clear it to see everything.</span>' +
+          '<button id="staleWindowClear" style="background:var(--amber);color:#14110F;border:none;padding:4px 12px;font-size:0.75rem;font-weight:600;cursor:pointer;">Clear window</button>' +
+          '<button id="staleWindowDismiss" style="background:transparent;color:var(--amber);border:1px solid var(--amber);padding:3px 10px;font-size:0.75rem;cursor:pointer;">Dismiss</button>';
+        banner.style.display = 'flex';
+        const clear = document.getElementById('staleWindowClear');
+        const dismiss = document.getElementById('staleWindowDismiss');
+        if (clear) clear.addEventListener('click', () => {
+          ['traffic', 'events', 'conv'].forEach(s => setTimeWindow(s, null));
+          // Reset the radios + status text in each timewindow block.
+          document.querySelectorAll('.timewindow').forEach(tw => {
+            const presetRadio = tw.querySelector('input[value="preset"]');
+            if (presetRadio) { presetRadio.checked = true; presetRadio.dispatchEvent(new Event('change')); }
+            const st = tw.querySelector('[data-tw-status]');
+            if (st) { st.textContent = 'Choose a From and To, then Apply.'; st.className = 'tw-status'; }
+          });
+          banner.style.display = 'none';
+          // Re-render everything from scratch.
+          if (window._recentEvents) { eventsPage = 1; applyFilters(); }
+          if (app.renderTrafficChart) app.renderTrafficChart(currentTrafficPreset);
+          renderConversationsTable(getConversationsInWindow());
+        });
+        if (dismiss) dismiss.addEventListener('click', () => { banner.style.display = 'none'; });
+      }
+
+      function applyFilters() {
+        const fStatus = document.getElementById('filter-status');
+        const fSearch = document.getElementById('filter-search');
+        const fModel = document.getElementById('filter-model');
+        const countEl = document.getElementById('eventsCount');
+        const navSearch = document.querySelector('.nav-search input');
+
+        const allEvents = window._recentEvents || [];
+        const status = fStatus?.value || 'all';
+        const q = (fSearch?.value || navSearch?.value || '').trim().toLowerCase();
+        const model = fModel?.value || 'all';
+        const win = getTimeWindow('events');
+
+        const filtered = allEvents.filter(event => {
+          let show = true;
+          const isError = event.status === 'error';
+          if (status === 'success' && isError) show = false;
+          if (status === 'error' && !isError) show = false;
+          if (model !== 'all' && (event.model || '').trim() !== model) show = false;
+          if (win && !eventInWindow(event, win)) show = false;
+          if (q) {
+            const preview = (event.user_message_preview || event.bot_response_preview || '').toLowerCase();
+            const session = (event.session_id || '').toLowerCase();
+            const errorText = (event.error_type || event.error || '').toLowerCase();
+            if (!(preview.includes(q) || session.includes(q) || errorText.includes(q))) show = false;
+          }
+          return show;
+        });
+
+        window._filteredEvents = filtered;
+
+        const maxPage = Math.max(1, Math.ceil(filtered.length / eventsLimit));
+        if (eventsPage > maxPage) eventsPage = maxPage;
+
+        const start = (eventsPage - 1) * eventsLimit;
+        const end = start + eventsLimit;
+        const paged = filtered.slice(start, end);
+        renderEventsTable(paged);
+        updateEventsPagination(filtered.length, eventsPage, eventsLimit);
+
+        // Reflect the window in the events timewindow status line
+        const twStatus = document.querySelector('[data-tw="events"] [data-tw-status]');
+        if (twStatus && win) {
+          twStatus.textContent = 'Window active: ' + filtered.length + ' of ' + allEvents.length + ' events · ' + formatWindowRange(win.from, win.to);
+          twStatus.className = 'tw-status tw-status--active';
+        }
+      }
+
+      // ============================================================
+      // DATETIME INPUT — thin adapter over a native
+      // <input type="datetime-local">. The user can pick from the
+      // dropdown OR type a value directly. getValue() returns a Date
+      // (or null when empty/invalid), setValue(date) formats it back
+      // into the input's yyyy-MM-ddTHH:MM string format.
+      // ============================================================
+      function DateTimeInput(el) {
+        const pad = (n) => String(n).padStart(2, '0');
+        const toLocal = (d) => {
+          if (!(d instanceof Date) || isNaN(d)) return '';
+          return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) +
+                 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+        };
+
+        return {
+          getValue() {
+            const v = el.value;
+            if (!v) return null;
+            const d = new Date(v);
+            return isNaN(d.getTime()) ? null : d;
+          },
+          setValue(date) {
+            el.value = toLocal(date);
+          }
+        };
+      }
+
+      const app = {
+        init() {
+          restoreTimeWindows();
+          this.bindToggles();
+          this.bindClosers();
+          this.bindOpeners();
+          this.bindBackdrops();
+          this.bindEscape();
+          this.bindSegmentedControls();
+          this.bindMiscButtons();
+          this.bindNav();
+          this.bindRefresh();
+          this.bindPagination();
+          this.bindEventsFilters();
+          this.bindSettings();
+          this.bindTrafficChart();
+          this.bindTopicDrawer();
+          this.bindTimeWindow('traffic');
+          this.bindTimeWindow('events');
+          this.bindTimeWindow('conv');
+
+          // Initial data load — honor the saved default time range
+          const initialRange = (window._settings && window._settings.defaultRange) || '24h';
+          currentTrafficPreset = initialRange;
+          loadDashboardData(initialRange).then(data => {
+            if (data) {
+              updateKPIs(data);
+              // Set the matching range button active before rendering
+              document.querySelectorAll('#trafficRange button').forEach(b => {
+                const isActive = b.dataset.range === initialRange;
+                b.classList.toggle('active', isActive);
+                b.classList.toggle('is-active', isActive);
+                b.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+              });
+              if (app.renderTrafficChart) app.renderTrafficChart(initialRange);
+              if (window._recentEvents) {
+                applyFilters();
+              }
+              // After the first render, check whether a persisted custom time
+              // window is hiding all the data; if so, surface a clear banner.
+              if (isStaleWindowCondition()) showStaleWindowBanner();
+            }
+          }).catch(() => {});
+          loadConversations();
+          loadTopics();
+          loadAnalysis();
+          pollHealth();
+          setInterval(pollHealth, 30000);
+        },
+
+        on(event, selector, handler) {
+          document.addEventListener(event, (e) => {
+            const el = e.target.closest(selector);
+            if (el) handler(e, el);
+          });
+        },
+
+        toggleClass(selector, className) {
+          const el = typeof selector === 'string' ? document.querySelector(selector) : selector;
+          if (el) el.classList.toggle(className);
+        },
+
+        addClass(selector, className) {
+          const el = typeof selector === 'string' ? document.querySelector(selector) : selector;
+          if (el) el.classList.add(className);
+        },
+
+        removeClass(selector, className) {
+          const el = typeof selector === 'string' ? document.querySelector(selector) : selector;
+          if (el) el.classList.remove(className);
+        },
+
+        bindToggles() {
+          this.on('click', '.toggle-switch[role="switch"]', (e, btn) => {
+            const isOn = btn.getAttribute('aria-checked') === 'true';
+            btn.setAttribute('aria-checked', String(!isOn));
+          });
+        },
+
+        bindClosers() {
+          // Drawer close button
+          this.on('click', '[aria-label="Close drawer"]', () => {
+            this.removeClass('.drawer', 'is-open');
+            this.removeClass('.drawer-backdrop', 'is-open');
+          });
+
+          // Modal cancel
+          this.on('click', '.modal-footer .btn-ghost', () => {
+            this.removeClass('.modal', 'is-open');
+            this.removeClass('.modal-backdrop', 'is-open');
+          });
+
+          // Modal save
+          this.on('click', '.modal-footer .btn-blue', () => {
+            this.removeClass('.modal', 'is-open');
+            this.removeClass('.modal-backdrop', 'is-open');
+          });
+
+          // Error detail dismiss
+          this.on('click', '.error-detail-section .error-actions .btn-ghost-sm', (e, btn) => {
+            const section = btn.closest('.error-detail-section');
+            if (section) section.style.display = 'none';
+          });
+        },
+
+        bindOpeners() {
+          // Session links -> open drawer and load session
+          this.on('click', '.session-link', (e, link) => {
+            e.preventDefault();
+            const sessionId = link.getAttribute('data-session-id');
+            // If the link sits in an events-table row, thread the row's
+            // timestamp through so the drawer can autoscroll to the
+            // matching message bubble.
+            let targetTimestamp = null;
+            const row = link.closest('tr[data-id]');
+            if (row) {
+              const eventId = row.getAttribute('data-id');
+              const event = (window._recentEvents || []).find(ev => String(ev.id) === eventId);
+              if (event && event.timestamp) targetTimestamp = event.timestamp;
+            }
+            if (sessionId) loadSessionDrawer(sessionId, targetTimestamp);
+            this.addClass('.drawer', 'is-open');
+            this.addClass('.drawer-backdrop', 'is-open');
+          });
+
+          // Error rows in events table -> show error detail
+          const eventsTable = document.getElementById('eventsTable');
+          if (eventsTable) {
+            eventsTable.addEventListener('click', (e) => {
+              const link = e.target.closest('.session-link');
+              if (link) return; // let the session-link handler above deal with it
+              const row = e.target.closest('tr[data-id]');
+              if (!row) return;
+              const eventId = row.getAttribute('data-id');
+              const event = (window._recentEvents || []).find(ev => String(ev.id) === eventId);
+              if (event && event.status === 'error') {
+                e.preventDefault();
+                loadErrorDetail(eventId);
+              }
+            });
+          }
+        },
+
+        bindBackdrops() {
+          this.on('click', '.modal-backdrop', () => {
+            this.removeClass('.modal', 'is-open');
+            this.removeClass('.modal-backdrop', 'is-open');
+          });
+          this.on('click', '.drawer-backdrop', () => {
+            this.removeClass('.drawer', 'is-open');
+            this.removeClass('.drawer-backdrop', 'is-open');
+          });
+        },
+
+        bindEscape() {
+          document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+              this.removeClass('.modal', 'is-open');
+              this.removeClass('.modal-backdrop', 'is-open');
+              this.removeClass('.drawer', 'is-open');
+              this.removeClass('.drawer-backdrop', 'is-open');
+            }
+          });
+        },
+
+        bindSegmentedControls() {
+          // Note: .range-custom-btn is excluded — it lives inside the
+          // traffic segmented control but manages its own pressed state
+          // and active styling independently.
+          this.on('click', '.segmented-control button:not(.range-custom-btn)', (e, btn) => {
+            const group = btn.closest('.segmented-control');
+            if (!group) return;
+            group.querySelectorAll('button:not(.range-custom-btn)').forEach(b => {
+              b.classList.remove('active', 'is-active');
+              b.setAttribute('aria-pressed', 'false');
+              b.setAttribute('aria-checked', 'false');
+            });
+            btn.classList.add('active', 'is-active');
+            btn.setAttribute('aria-pressed', 'true');
+            btn.setAttribute('aria-checked', 'true');
+          });
+        },
+
+        bindNav() {
+          this.on('click', '.sidebar-nav a[data-view]', (e, link) => {
+            e.preventDefault();
+            const view = link.getAttribute('data-view');
+
+            // Update active link state
+            document.querySelectorAll('.sidebar-nav a').forEach(a => {
+              a.classList.remove('active');
+              a.removeAttribute('aria-current');
+            });
+            link.classList.add('active');
+            link.setAttribute('aria-current', 'page');
+
+            // Show/hide sections
+            document.querySelectorAll('[data-view]').forEach(section => {
+              if (section.classList.contains('sidebar-nav')) return;
+              if (section.closest('.sidebar-nav')) return;
+              section.classList.toggle('is-active', section.getAttribute('data-view') === view);
+            });
+          });
+
+          // Activate default view on load
+          const defaultView = 'overview';
+          document.querySelectorAll('[data-view]').forEach(section => {
+            if (section.classList.contains('sidebar-nav')) return;
+            if (section.closest('.sidebar-nav')) return;
+            section.classList.toggle('is-active', section.getAttribute('data-view') === defaultView);
+          });
+        },
+
+        bindRefresh() {
+          let ticker = null;
+          let secondsSince = 2;
+          const stamp = document.querySelector('.refresh-stamp');
+
+          const formatStamp = (s) => {
+            if (s < 1) return 'Last refreshed: just now';
+            if (s === 1) return 'Last refreshed: 1 second ago';
+            if (s < 60) return 'Last refreshed: ' + s + ' seconds ago';
+            const m = Math.floor(s / 60);
+            return 'Last refreshed: ' + m + (m === 1 ? ' minute ago' : ' minutes ago');
+          };
+
+          const startTicker = () => {
+            if (ticker) clearInterval(ticker);
+            ticker = setInterval(() => {
+              secondsSince += 1;
+              if (stamp) stamp.textContent = formatStamp(secondsSince);
+            }, 1000);
+          };
+          startTicker();
+
+          this.on('click', '.refresh-trigger', async (e, btn) => {
+            if (btn.classList.contains('is-spinning')) return;
+            btn.classList.add('is-spinning');
+            setTimeout(() => btn.classList.remove('is-spinning'), 700);
+
+            // Reset the stamp on any refresh trigger
+            secondsSince = 0;
+            if (stamp) {
+              stamp.textContent = formatStamp(0);
+              stamp.classList.add('is-flash');
+              setTimeout(() => stamp.classList.remove('is-flash'), 500);
+            }
+            startTicker();
+
+            try {
+              const data = await loadDashboardData(currentTrafficPreset);
+              if (data) {
+                updateKPIs(data);
+                if (app.renderTrafficChart) app.renderTrafficChart(currentTrafficPreset);
+                if (window._recentEvents) {
+                  applyFilters();
+                }
+              }
+            } catch (err) {
+              // Silently fail; UI keeps previous values
+            }
+            try {
+              await loadConversations();
+            } catch (err) {
+              // Silently fail
+            }
+            try {
+              await loadTopics();
+            } catch (err) {
+              // Silently fail
+            }
+            try {
+              await loadAnalysis();
+            } catch (err) {
+              // Silently fail
+            }
+          });
+        },
+
+        bindPagination() {
+          // Clamp + apply a target page for the events table.
+          const goEvents = (p) => {
+            const max = Math.max(1, Math.ceil((window._filteredEvents || []).length / eventsLimit));
+            eventsPage = Math.min(Math.max(1, p), max);
+            applyFilters();
+          };
+
+          // Events pagination
+          const eventsPrev = document.getElementById('eventsPrev');
+          const eventsNext = document.getElementById('eventsNext');
+          const eventsInput = document.getElementById('eventsPageInput');
+          if (eventsPrev) {
+            eventsPrev.addEventListener('click', () => {
+              if (eventsPrev.classList.contains('disabled')) return;
+              goEvents(eventsPage - 1);
+            });
+          }
+          if (eventsNext) {
+            eventsNext.addEventListener('click', () => {
+              if (eventsNext.classList.contains('disabled')) return;
+              goEvents(eventsPage + 1);
+            });
+          }
+          if (eventsInput) {
+            eventsInput.addEventListener('change', () => {
+              const v = parseInt(eventsInput.value, 10);
+              if (!isNaN(v)) goEvents(v);
+              else eventsInput.value = eventsPage;
+            });
+            // Enter key commits the typed page without waiting for blur.
+            eventsInput.addEventListener('keydown', (e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                eventsInput.blur();
+              }
+            });
+          }
+
+          // Clamp + apply a target page for the conversations table.
+          const goConversations = (p) => {
+            const total = (getConversationsInWindow() || []).length;
+            const max = Math.max(1, Math.ceil(total / conversationsLimit));
+            conversationsPage = Math.min(Math.max(1, p), max);
+            renderConversationsTable(getConversationsInWindow());
+          };
+
+          // Conversations pagination
+          const conversationsPrev = document.getElementById('conversationsPrev');
+          const conversationsNext = document.getElementById('conversationsNext');
+          const conversationsInput = document.getElementById('conversationsPageInput');
+          if (conversationsPrev) {
+            conversationsPrev.addEventListener('click', () => {
+              if (conversationsPrev.classList.contains('disabled')) return;
+              goConversations(conversationsPage - 1);
+            });
+          }
+          if (conversationsNext) {
+            conversationsNext.addEventListener('click', () => {
+              if (conversationsNext.classList.contains('disabled')) return;
+              goConversations(conversationsPage + 1);
+            });
+          }
+          if (conversationsInput) {
+            conversationsInput.addEventListener('change', () => {
+              const v = parseInt(conversationsInput.value, 10);
+              if (!isNaN(v)) goConversations(v);
+              else conversationsInput.value = conversationsPage;
+            });
+            conversationsInput.addEventListener('keydown', (e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                conversationsInput.blur();
+              }
+            });
+          }
+        },
+
+        bindEventsFilters() {
+          const table = document.getElementById('eventsTable');
+          if (!table) return;
+          const fStatus = document.getElementById('filter-status');
+          const fSearch = document.getElementById('filter-search');
+          const fModel = document.getElementById('filter-model');
+          const fDate = document.getElementById('filter-date');
+          const clearBtn = document.getElementById('clear-filters');
+          const navSearch = document.querySelector('.nav-search input');
+
+          // Wire up listeners — reset to page 1 when filters change
+          [fStatus, fModel, fDate].forEach(el => el && el.addEventListener('change', () => { eventsPage = 1; applyFilters(); }));
+          if (fSearch) fSearch.addEventListener('input', () => { eventsPage = 1; applyFilters(); });
+
+          // Global nav search → mirrors events search when events view is active
+          if (navSearch) {
+            navSearch.addEventListener('input', () => {
+              if (fSearch) {
+                fSearch.value = navSearch.value;
+                eventsPage = 1;
+                applyFilters();
+              }
+            });
+            navSearch.addEventListener('keydown', (e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                // Switch to events tab if not already
+                const eventsLink = document.querySelector('.sidebar-nav a[data-view="events"]');
+                if (eventsLink && !eventsLink.classList.contains('active')) {
+                  eventsLink.click();
+                }
+              }
+            });
+          }
+
+          if (clearBtn) {
+            clearBtn.addEventListener('click', (e) => {
+              e.preventDefault();
+              if (fStatus) fStatus.value = 'all';
+              if (fSearch) fSearch.value = '';
+              if (fModel) fModel.value = 'all';
+              if (fDate) fDate.value = 'today';
+              if (navSearch) navSearch.value = '';
+              eventsPage = 1;
+              applyFilters();
+            });
+          }
+
+          // Keyboard shortcut: '/' focuses nav search
+          document.addEventListener('keydown', (e) => {
+            if (e.key === '/' && document.activeElement?.tagName !== 'INPUT' && document.activeElement?.tagName !== 'TEXTAREA') {
+              e.preventDefault();
+              navSearch?.focus();
+            }
+          });
+        },
+
+        bindTimeWindow(scope) {
+          const root = document.querySelector('[data-tw="' + scope + '"]');
+          if (!root) return;
+          const radios = root.querySelectorAll('input[name="tw-' + scope + '-mode"]');
+          const presetPane = root.querySelector('[data-pane="preset"]');
+          const customPane = root.querySelector('[data-pane="custom"]');
+          const fromEl = root.querySelector('[data-tw-from]');
+          const toEl = root.querySelector('[data-tw-to]');
+          const applyBtn = root.querySelector('[data-tw-apply]');
+          const clearBtn = root.querySelector('[data-tw-clear]');
+          const statusEl = root.querySelector('[data-tw-status]');
+
+          // Instantiate the datetime inputs (no-op if elements missing).
+          const fromPicker = fromEl ? new DateTimeInput(fromEl) : null;
+          const toPicker = toEl ? new DateTimeInput(toEl) : null;
+
+          const syncPanes = (mode) => {
+            const isCustom = mode === 'custom';
+            presetPane.classList.toggle('is-active', !isCustom);
+            presetPane.classList.toggle('is-disabled', isCustom);
+            customPane.classList.toggle('is-active', isCustom);
+            customPane.classList.toggle('is-disabled', !isCustom);
+          };
+
+          // On init, reflect any restored window in the UI so the user's
+          // last selection persists across reloads.
+          const restored = getTimeWindow(scope);
+          if (restored && (restored.from || restored.to)) {
+            const customRadio = root.querySelector('input[value="custom"]');
+            if (customRadio) customRadio.checked = true;
+            syncPanes('custom');
+            // Defer the setValue calls to the next frame so each Column's
+            // own constructor-time snapTo() has already run — otherwise the
+            // restore can race the initial render and land on the wrong row.
+            requestAnimationFrame(() => {
+              if (restored.from && fromPicker) fromPicker.setValue(restored.from);
+              if (restored.to && toPicker) toPicker.setValue(restored.to);
+              // Defer re-apply so data loaded by init() is present.
+              setTimeout(() => reapplyScoped(), 0);
+            });
+          }
+
+          const reapplyScoped = () => {
+            if (scope === 'events') {
+              eventsPage = 1;
+              applyFilters();
+            } else if (scope === 'conv') {
+              conversationsPage = 1;
+              renderConversationsTable(getConversationsInWindow());
+              const win = getTimeWindow('conv');
+              const total = (window._conversations || []).length;
+              const shown = getConversationsInWindow().length;
+              if (statusEl && win) {
+                statusEl.textContent = 'Window active: ' + shown + ' of ' + total + ' conversations · ' + formatWindowRange(win.from, win.to);
+                statusEl.className = 'tw-status tw-status--active';
+              }
+            } else if (scope === 'traffic') {
+              // Render the active preset (NOT the custom button) with the
+              // custom window mask applied on top, if any.
+              if (app.renderTrafficChart) app.renderTrafficChart(currentTrafficPreset);
+              const win = getTimeWindow('traffic');
+              if (statusEl && win) {
+                statusEl.textContent = 'Window active · ' + formatWindowRange(win.from, win.to);
+                statusEl.className = 'tw-status tw-status--active';
+              }
+            }
+          };
+
+          const clearScoped = () => {
+            setTimeWindow(scope, null);
+            // Reset both wheels to "now" so the UI doesn't show the last
+            // (now-invalid) selection after clearing.
+            const nowD = new Date();
+            if (fromPicker) fromPicker.setValue(nowD);
+            if (toPicker) toPicker.setValue(nowD);
+            if (statusEl) {
+              statusEl.textContent = 'Choose a From and To, then Apply.';
+              statusEl.className = 'tw-status';
+            }
+            reapplyScoped();
+          };
+
+          // Radio: switch modes
+          radios.forEach(r => {
+            r.addEventListener('change', () => {
+              syncPanes(r.value);
+              if (r.value === 'preset') {
+                // Leaving custom mode clears the window
+                setTimeWindow(scope, null);
+                if (statusEl) {
+                  statusEl.textContent = 'Choose a From and To, then Apply.';
+                  statusEl.className = 'tw-status';
+                }
+                reapplyScoped();
+              }
+            });
+          });
+
+          // Apply button — read the wheel pickers
+          if (applyBtn) {
+            applyBtn.addEventListener('click', () => {
+              const from = fromPicker ? fromPicker.getValue() : null;
+              const to = toPicker ? toPicker.getValue() : null;
+              if (from && to && from > to) {
+                if (statusEl) {
+                  statusEl.textContent = 'From must be earlier than To.';
+                  statusEl.className = 'tw-status tw-status--error';
+                }
+                return;
+              }
+              setTimeWindow(scope, { from: from, to: to });
+              reapplyScoped();
+            });
+          }
+
+          // Clear button
+          if (clearBtn) {
+            clearBtn.addEventListener('click', clearScoped);
+          }
+
+          // Pre-fill To = now, From = 24h ago the first time custom is opened,
+          // so the user has a sensible starting window to edit.
+          let preFilled = false;
+          radios.forEach(r => {
+            if (r.value === 'custom') {
+              r.addEventListener('click', () => {
+                if (!preFilled && fromPicker && toPicker) {
+                  const now = new Date();
+                  const start = new Date(now.getTime() - 24 * 3600 * 1000);
+                  if (!getTimeWindow(scope)) {
+                    fromPicker.setValue(start);
+                    toPicker.setValue(now);
+                  }
+                  preFilled = true;
+                }
+              });
+            }
+          });
+        },
+
+        bindSettings() {
+          const DEFAULTS = {
+            accent: '#40BD4B',
+            interval: 10,
+            density: 'comfortable',
+            errorsOnly: false,
+            sound: false,
+            pageSize: 20,
+            defaultRange: '24h',
+            relativeTimestamps: true,
+            highlightErrors: true,
+            keepFilters: false
+          };
+          const KEY = 'dashboard.settings';
+          let saved = { ...DEFAULTS };
+          try {
+            const stored = localStorage.getItem(KEY);
+            if (stored) saved = { ...DEFAULTS, ...JSON.parse(stored) };
+          } catch (e) {}
+          let pending = { ...saved };
+          let autoTimer = null;
+
+          const apply = (s) => {
+            // Accent — recolor the live theme
+            document.documentElement.style.setProperty('--accent', s.accent);
+            document.documentElement.style.setProperty('--blue', s.accent);
+
+            // Density
+            const tbl = document.getElementById('eventsTable');
+            if (tbl) tbl.classList.toggle('is-compact', s.density === 'compact');
+
+            // Mirror settings onto window._settings so non-bindSettings code
+            // (renderEventsTable, bindTimeWindow) can read them.
+            window._settings = Object.assign({}, window._settings || {}, s);
+
+            // Rows per page
+            eventsLimit = Number(s.pageSize) || 20;
+
+            // Highlight error rows
+            const eventsTbl = document.getElementById('eventsTable');
+            if (eventsTbl) eventsTbl.classList.toggle('is-highlight-errors', s.highlightErrors !== false);
+
+            // Re-render events so relative-timestamp / page-size changes
+            // take effect immediately when settings are applied.
+            if (window._recentEvents) {
+              eventsPage = 1;
+              applyFilters();
+            }
+
+            // Errors-only default — set the filter and trigger an update
+            const fStatus = document.getElementById('filter-status');
+            if (fStatus) {
+              const target = s.errorsOnly ? 'error' : 'all';
+              if (fStatus.value !== target) {
+                fStatus.value = target;
+                fStatus.dispatchEvent(new Event('change'));
+              }
+            }
+
+            // Auto-refresh interval
+            if (autoTimer) { clearInterval(autoTimer); autoTimer = null; }
+            if (s.interval > 0) {
+              autoTimer = setInterval(() => {
+                loadDashboardData(currentTrafficPreset).then(data => {
+                  if (data) {
+                    updateKPIs(data);
+                    if (app.renderTrafficChart) app.renderTrafficChart(currentTrafficPreset);
+                    if (window._recentEvents) {
+                      applyFilters();
+                    }
+                  }
+                }).catch(() => {});
+                loadConversations().catch(() => {});
+                loadTopics().catch(() => {});
+                const trigger = document.querySelector('.refresh-btn.refresh-trigger');
+                if (trigger) {
+                  trigger.classList.add('is-spinning');
+                  setTimeout(() => trigger.classList.remove('is-spinning'), 700);
+                }
+                const stamp = document.querySelector('.refresh-stamp');
+                if (stamp) {
+                  stamp.textContent = 'Last refreshed: just now';
+                  stamp.classList.add('is-flash');
+                  setTimeout(() => stamp.classList.remove('is-flash'), 500);
+                }
+              }, s.interval * 1000);
+            }
+          };
+
+          const syncUI = (s) => {
+            document.querySelectorAll('.accent-swatch').forEach(sw => {
+              sw.classList.toggle('is-selected', sw.dataset.accent === s.accent);
+            });
+            document.querySelectorAll('#settings-interval .segmented-btn').forEach(b => {
+              b.classList.toggle('is-active', String(s.interval) === b.dataset.interval);
+            });
+            document.querySelectorAll('#settings-density .segmented-btn').forEach(b => {
+              b.classList.toggle('is-active', s.density === b.dataset.density);
+            });
+            document.querySelectorAll('#settings-page-size .segmented-btn').forEach(b => {
+              b.classList.toggle('is-active', String(s.pageSize) === b.dataset.pageSize);
+            });
+            document.querySelectorAll('#settings-default-range .segmented-btn').forEach(b => {
+              b.classList.toggle('is-active', s.defaultRange === b.dataset.defaultRange);
+            });
+            const map = [
+              ['settings-errors-only', s.errorsOnly],
+              ['settings-sound', s.sound],
+              ['settings-relative', s.relativeTimestamps !== false],
+              ['settings-highlight', s.highlightErrors !== false],
+              ['settings-keep-filters', s.keepFilters === true]
+            ];
+            map.forEach(([id, val]) => {
+              const t = document.getElementById(id);
+              if (t) t.setAttribute('aria-checked', String(val));
+            });
+          };
+
+          // Apply saved settings at startup
+          apply(saved);
+          syncUI(saved);
+
+          const openModal = () => {
+            pending = { ...saved };
+            syncUI(pending);
+            document.getElementById('settingsModal')?.classList.add('is-open');
+            document.querySelector('.modal-backdrop[data-modal="settings"]')?.classList.add('is-open');
+          };
+          const closeModal = () => {
+            document.getElementById('settingsModal')?.classList.remove('is-open');
+            document.querySelector('.modal-backdrop[data-modal="settings"]')?.classList.remove('is-open');
+          };
+
+          // Triggers
+          this.on('click', '[data-settings-trigger]', (e) => {
+            e.preventDefault();
+            openModal();
+          });
+
+          // Swatch selection (only inside settings modal)
+          this.on('click', '.settings-modal .accent-swatch', (e, btn) => {
+            pending.accent = btn.dataset.accent;
+            syncUI(pending);
+          });
+
+          // Interval segmented control
+          this.on('click', '#settings-interval .segmented-btn', (e, btn) => {
+            pending.interval = parseInt(btn.dataset.interval, 10);
+            syncUI(pending);
+          });
+
+          // Density segmented control
+          this.on('click', '#settings-density .segmented-btn', (e, btn) => {
+            pending.density = btn.dataset.density;
+            syncUI(pending);
+          });
+
+          // Rows per page segmented control
+          this.on('click', '#settings-page-size .segmented-btn', (e, btn) => {
+            pending.pageSize = parseInt(btn.dataset.pageSize, 10);
+            syncUI(pending);
+          });
+
+          // Default time range segmented control
+          this.on('click', '#settings-default-range .segmented-btn', (e, btn) => {
+            pending.defaultRange = btn.dataset.defaultRange;
+            syncUI(pending);
+          });
+
+          // Toggles — bindToggles flips aria-checked first; we read the new state into pending
+          ['settings-errors-only', 'settings-sound', 'settings-relative', 'settings-highlight', 'settings-keep-filters'].forEach(id => {
+            this.on('click', '#' + id, (e, btn) => {
+              const val = btn.getAttribute('aria-checked') === 'true';
+              if (id === 'settings-errors-only') pending.errorsOnly = val;
+              if (id === 'settings-sound') pending.sound = val;
+              if (id === 'settings-relative') pending.relativeTimestamps = val;
+              if (id === 'settings-highlight') pending.highlightErrors = val;
+              if (id === 'settings-keep-filters') pending.keepFilters = val;
+            });
+          });
+
+          // Cancel — revert UI to saved, close
+          this.on('click', '[data-settings-action="cancel"]', () => {
+            syncUI(saved);
+            closeModal();
+          });
+
+          // Save — persist and apply
+          this.on('click', '[data-settings-action="save"]', () => {
+            saved = { ...pending };
+            try { localStorage.setItem(KEY, JSON.stringify(saved)); } catch (e) {}
+
+            apply(saved);
+            closeModal();
+            this.showToast('Settings saved');
+          });
+
+          // Backdrop click on the settings backdrop only
+          this.on('click', '.modal-backdrop[data-modal="settings"]', () => {
+            syncUI(saved);
+            closeModal();
+          });
+
+          // Escape closes (mirror to revert pending)
+          document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+              const sm = document.getElementById('settingsModal');
+              if (sm && sm.classList.contains('is-open')) {
+                syncUI(saved);
+                closeModal();
+              }
+            }
+          });
+        },
+
+        showToast(text) {
+          let toast = document.getElementById('settingsToast');
+          if (!toast) {
+            toast = document.createElement('div');
+            toast.id = 'settingsToast';
+            toast.className = 'toast';
+            toast.innerHTML = '<span class="toast-dot"></span><span class="toast-text"></span>';
+            document.body.appendChild(toast);
+          }
+          toast.querySelector('.toast-text').textContent = text;
+          toast.classList.add('is-visible');
+          clearTimeout(this._toastTimer);
+          this._toastTimer = setTimeout(() => toast.classList.remove('is-visible'), 2000);
+        },
+
+        bindTrafficChart() {
+          const range = document.getElementById('trafficRange');
+          if (!range) return;
+          const bars = document.getElementById('trafficBars');
+          const yLabels = document.getElementById('trafficYLabels');
+          const xLabels = document.getElementById('trafficXLabels');
+          const title = document.getElementById('trafficTitle');
+          const subtitle = document.getElementById('trafficSubtitle');
+          const footer = document.getElementById('trafficFooter');
+
+          // Hour-of-day axis labels for the 24h view.
+          const HOUR_LABELS = ['00:00','04:00','08:00','12:00','16:00','20:00'];
+          const HOUR_LABEL_IDX = [0,4,8,12,16,20];
+
+          const formatNum = (n) => {
+            if (n >= 1000) return (n / 1000).toFixed(n >= 10000 ? 0 : 1) + 'k';
+            return String(n);
+          };
+          const formatComma = (n) => n.toLocaleString();
+
+          const niceMax = (max) => {
+            // Round up to a "nice" tick
+            const pow = Math.pow(10, Math.floor(Math.log10(max)));
+            const norm = max / pow;
+            let nice;
+            if (norm <= 1) nice = 1;
+            else if (norm <= 2) nice = 2;
+            else if (norm <= 2.5) nice = 2.5;
+            else if (norm <= 5) nice = 5;
+            else nice = 10;
+            return nice * pow;
+          };
+
+          const showEmpty = () => {
+            yLabels.innerHTML = '';
+            xLabels.innerHTML = '';
+            bars.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text-muted);font-size:0.875rem;">No data available</div>';
+            footer.textContent = '';
+          };
+
+          const render = (rangeKey) => {
+            let values, labels, labelIdx, xCount, src;
+
+            if (rangeKey === '24h') {
+              title.textContent = 'Traffic — last 24 hours';
+              subtitle.textContent = 'Messages per hour';
+              const raw = window._trafficData;
+              if (!Array.isArray(raw) || raw.length === 0) {
+                showEmpty();
+                return;
+              }
+              src = raw;
+              values = src.map(d => d.count || 0);
+              labels = HOUR_LABELS;
+              labelIdx = HOUR_LABEL_IDX;
+              xCount = 24;
+              const peak = values.indexOf(Math.max(...values));
+              const quiet = values.indexOf(Math.min(...values));
+              const total = values.reduce((a, b) => a + b, 0);
+              const pad = (n) => String(n).padStart(2, '0');
+              footer.textContent = 'Peak hour: ' + pad(peak) + ':00 · Quietest hour: ' + pad(quiet) + ':00 · Total: ' + formatComma(total);
+            } else if (rangeKey === '7d') {
+              title.textContent = 'Traffic — last 7 days';
+              subtitle.textContent = 'Messages per day';
+              src = window._trafficData7d;
+              if (!src || src.length === 0) {
+                showEmpty();
+                return;
+              }
+              values = src.map(d => d.total);
+              labels = src.map(d => d.day);
+              labelIdx = [0, 1, 2, 3, 4, 5, 6];
+              xCount = 7;
+              const max = Math.max(...values);
+              const peak = src[values.indexOf(max)].day;
+              const total = values.reduce((a, b) => a + b, 0);
+              footer.textContent = 'Peak day: ' + peak + ' · Avg/day: ' + formatComma(Math.round(total / 7)) + ' · Total: ' + formatComma(total);
+            } else {
+              title.textContent = 'Traffic — last 30 days';
+              subtitle.textContent = 'Messages per day';
+              src = window._trafficData30d;
+              if (!src || src.length === 0) {
+                showEmpty();
+                return;
+              }
+              values = src.map(d => d.total);
+              labels = src.filter((_, i) => i % 5 === 0).map(d => d.label);
+              labelIdx = src.map((_, i) => i).filter(i => i % 5 === 0);
+              xCount = 30;
+              const max = Math.max(...values);
+              const peak = src[values.indexOf(max)].label;
+              const total = values.reduce((a, b) => a + b, 0);
+              footer.textContent = 'Peak day: ' + peak + ' · Avg/day: ' + formatComma(Math.round(total / 30)) + ' · Total: ' + formatComma(total);
+            }
+
+            // Axes
+            // Apply a custom time window by masking out buckets whose
+            // representative datetime falls outside [from, to].
+            const tw = getTimeWindow('traffic');
+            if (tw && (tw.from || tw.to)) {
+              const today = new Date();
+              const bucketDate = (i) => {
+                if (rangeKey === '24h') {
+                  const d = new Date(today);
+                  d.setHours(i, 0, 0, 0);
+                  return d;
+                } else if (rangeKey === '7d') {
+                  const d = new Date(today);
+                  d.setHours(0, 0, 0, 0);
+                  d.setDate(d.getDate() - (6 - i));
+                  return d;
+                } else {
+                  return src[i] && src[i].date ? new Date(src[i].date + 'T00:00:00') : null;
+                }
+              };
+              values = values.map((v, i) => {
+                const bd = bucketDate(i);
+                if (!bd) return v;
+                if (tw.from && bd < tw.from) return 0;
+                if (tw.to && bd > tw.to) return 0;
+                return v;
+              });
+            }
+
+            const maxVal = niceMax(Math.max(...values));
+            if (maxVal <= 0) {
+              yLabels.innerHTML = '';
+              xLabels.innerHTML = labels.map((lbl, i) => {
+                const idx = labelIdx[i];
+                const xPct = 6.8 + ((100 - 13.6) / xCount) * (idx + 0.5);
+                return '<text x="' + ((xPct / 100) * 1000) + '" y="288" text-anchor="middle">' + lbl + '</text>';
+              }).join('');
+              bars.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text-muted);font-size:0.875rem;">No data in this window</div>';
+              footer.textContent = 'Total: 0';
+              return;
+            }
+            const ticks = [0, maxVal * 0.25, maxVal * 0.5, maxVal * 0.75, maxVal];
+            const yPositions = [264, 204, 144, 84, 28];
+            yLabels.innerHTML = ticks.map((t, i) =>
+              '<text x="56" y="' + yPositions[i] + '" text-anchor="end">' + formatNum(Math.round(t)) + '</text>'
+            ).join('');
+
+            // X axis labels positioned by column
+            const left = 6.8;
+            const right = 6.8;
+            const inner = 100 - left - right;
+            const colWidth = inner / xCount;
+            xLabels.innerHTML = labels.map((lbl, i) => {
+              const idx = labelIdx[i];
+              const xPct = left + colWidth * (idx + 0.5);
+              const xSvg = (xPct / 100) * 1000;
+              return '<text x="' + xSvg + '" y="288" text-anchor="middle">' + lbl + '</text>';
+            }).join('');
+
+            // Bars
+            bars.innerHTML = values.map((v, i) => {
+              const pct = (v / maxVal) * 100;
+              let label;
+              if (rangeKey === '24h') label = String(i).padStart(2, '0') + ':00 — ' + formatComma(v) + ' messages';
+              else if (rangeKey === '7d') label = src[i].day + ' — ' + formatComma(v) + ' messages';
+              else label = src[i].label + ' — ' + formatComma(v) + ' messages';
+              return '<div class="bar-group">' +
+                '<div class="bar" style="height:' + pct.toFixed(1) + '%"></div>' +
+                '<div class="tooltip">' + label + '</div>' +
+                '</div>';
+            }).join('');
+          };
+
+          app.renderTrafficChart = render;
+
+          // Click handlers — bindSegmentedControls already toggles active state.
+          // Only the preset buttons (24h/7d/30d); the "Custom range" button
+          // has its own handler and is excluded here.
+          range.querySelectorAll('button[data-range]').forEach(btn => {
+            btn.addEventListener('click', async () => {
+              // Selecting a preset exits any custom window.
+              setTimeWindow('traffic', null);
+              currentTrafficPreset = btn.dataset.range;
+              const customBtn = document.getElementById('trafficCustomBtn');
+              if (customBtn) customBtn.setAttribute('aria-pressed', 'false');
+              // Switch the timewindow radio back to "preset" so the pane UI
+              // matches what's being shown.
+              const twRoot = document.querySelector('[data-tw="traffic"]');
+              const presetRadio = twRoot && twRoot.querySelector('input[value="preset"]');
+              if (presetRadio && !presetRadio.checked) {
+                presetRadio.checked = true;
+                presetRadio.dispatchEvent(new Event('change'));
+              }
+              const twStatus = twRoot && twRoot.querySelector('[data-tw-status]');
+              if (twStatus) { twStatus.textContent = 'Use the range buttons above.'; twStatus.className = 'tw-status'; }
+
+              const key = btn.dataset.range;
+              if (key === '7d' && !window._trafficData7d) {
+                try {
+                  const data = await loadDashboardData('7d');
+                  if (!data || !data.daily_traffic) {
+                    render('7d');
+                    return;
+                  }
+                } catch (e) {
+                  render('7d');
+                  return;
+                }
+              }
+              if (key === '30d' && !window._trafficData30d) {
+                try {
+                  const data = await loadDashboardData('30d');
+                  if (!data || !data.daily_traffic) {
+                    render('30d');
+                    return;
+                  }
+                } catch (e) {
+                  render('30d');
+                  return;
+                }
+              }
+              render(key);
+            });
+          });
+
+          // "Custom range" button — switches the traffic timewindow to Custom
+          // mode, pre-fills the wheels if empty, and scrolls them into view.
+          const customBtn = document.getElementById('trafficCustomBtn');
+          if (customBtn) {
+            customBtn.addEventListener('click', () => {
+              const twRoot = document.querySelector('[data-tw="traffic"]');
+              if (!twRoot) return;
+              const customRadio = twRoot.querySelector('input[value="custom"]');
+              if (customRadio) { customRadio.checked = true; customRadio.dispatchEvent(new Event('change')); }
+              customBtn.setAttribute('aria-pressed', 'true');
+              // Deactivate the 24h/7d/30d preset buttons so only one control
+              // reads as active at a time while a custom window is chosen.
+              document.querySelectorAll('#trafficRange button[data-range]').forEach(b => {
+                b.classList.remove('active', 'is-active');
+                b.setAttribute('aria-pressed', 'false');
+              });
+              // Pre-fill wheels once (handled by bindTimeWindow's first-open logic)
+              // and bring the picker into view.
+              setTimeout(() => {
+                const picker = twRoot.querySelector('[data-tw-from]');
+                if (picker) picker.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              }, 50);
+            });
+          }
+
+          // Initial render
+          render('24h');
+        },
+
+        bindTopicDrawer() {
+          const drawer = document.getElementById('topicDrawer');
+          const backdrop = document.querySelector('.drawer-backdrop[data-drawer="topic"]');
+          if (!drawer) return;
+
+          const close = () => {
+            drawer.classList.remove('is-open');
+            backdrop?.classList.remove('is-open');
+          };
+
+          // Tile click → fetch threads
+          this.on('click', '.topic-tile', (e, tile) => {
+            const name = tile.querySelector('.topic-name')?.textContent.trim() || 'Topic';
+            loadTopicThreads(name);
+          });
+
+          // Backdrop / close button
+          this.on('click', '.drawer-backdrop[data-drawer="topic"]', close);
+          drawer.querySelector('[aria-label="Close drawer"]')?.addEventListener('click', close);
+
+          // Escape closes
+          document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && drawer.classList.contains('is-open')) close();
+          });
+
+          // Clicking a thread row opens the conversation drawer
+          this.on('click', '.topic-thread', (e) => {
+            // Session-link inside topic-thread → close topic drawer so the conv drawer takes over
+            if (e.target.closest('.topic-thread__session')) {
+              close();
+              return;
+            }
+            close();
+            setTimeout(() => {
+              this.addClass('.drawer:not(.topic-drawer)', 'is-open');
+              this.addClass('.drawer-backdrop:not([data-drawer])', 'is-open');
+            }, 100);
+          });
+        },
+
+        bindMiscButtons() {
+          // Copy session ID feedback
+          this.on('click', '[aria-label="Copy session ID"]', (e, btn) => {
+            btn.setAttribute('aria-label', 'Copied!');
+            btn.setAttribute('title', 'Copied!');
+            setTimeout(() => {
+              btn.setAttribute('aria-label', 'Copy session ID');
+              btn.setAttribute('title', 'Copy session ID');
+            }, 1500);
+          });
+        }
+      };
+
+      app.init();
+      window.ops = app;
+    })();
+  </script>
+</body>
+</html>
