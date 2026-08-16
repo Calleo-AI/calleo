@@ -13,7 +13,7 @@ os.environ.setdefault("CHROMA_DB_PATH", os.path.join(os.path.dirname(__file__), 
 import update_db
 from test_create_db import FakeCollection
 
-URL = "https://www.example-school.org/clubs/robotics"
+URL = "https://www.example-site.org/clubs/robotics"
 CONTENT_HTML = (
     "<html><head><title>Robotics</title></head><body>"
     "<div class='page-row'><div class='page-col span24'>"
@@ -81,6 +81,6 @@ def test_get_stored_urls_skips_manual_sources():
     col = FakeCollection()
     _seed(col, URL, n=2)
     col.add(ids=["manual_1"], documents=["doc"],
-            metadatas=[{"source": "school_profile.txt"}], embeddings=[[0.1]])
+            metadatas=[{"source": "site_profile.txt"}], embeddings=[[0.1]])
     urls = update_db.get_stored_urls(col)
     assert urls == [URL]

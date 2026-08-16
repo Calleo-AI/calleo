@@ -1,7 +1,7 @@
 """
 Load Text Files into ChromaDB
 
-Reads specific .txt files (e.g., school_profile.txt) and stores
+Reads specific .txt files (e.g., site_profile.txt) and stores
 their contents in the 'enrollment_info' ChromaDB collection.
 """
 
@@ -19,7 +19,7 @@ load_dotenv()
 
 # Text files to ingest (relative to this script's directory)
 TEXT_FILES = [
-    "school_profile.txt",
+    "site_profile.txt",
 ]
 
 

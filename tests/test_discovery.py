@@ -1,7 +1,7 @@
 """Unit tests for Database/discovery.py (pure functions, no network).
 
 URLs are built from the configured SITE_ROOT so the tests keep passing when a
-deployer edits school_config.py. Pattern-mechanism tests monkeypatch the
+deployer edits site_config.py. Pattern-mechanism tests monkeypatch the
 compiled exclusion list to test behavior independent of the shipped config.
 """
 import os
@@ -84,7 +84,7 @@ def test_excluded_site_map_nav_index():
 
 def test_custom_exclusion_patterns_are_honored(monkeypatch):
     # The mechanism: any regex a deployer adds to EXCLUDED_URL_PATTERNS in
-    # school_config.py must exclude matching URLs (matched lowercase).
+    # site_config.py must exclude matching URLs (matched lowercase).
     patterns = [r"intersession-week-20\d\d", r"photo-gallery-"]
     monkeypatch.setattr(discovery, "_EXCLUDED_RES", [re.compile(p) for p in patterns])
     assert is_excluded(f"{SITE_ROOT}/intersession-week-2023")

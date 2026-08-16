@@ -1,7 +1,7 @@
 """
-discovery.py — URL discovery for the school website.
+discovery.py — URL discovery for the configured website.
 
-Fetches the site's XML sitemap (location set in school_config.py — note that
+Fetches the site's XML sitemap (location set in site_config.py — note that
 some CMSes, e.g. Blackbaud, serve it at /sitemap rather than /sitemap.xml),
 normalizes URLs (canonical form, no /page/ duplicates), and filters out
 pages that are off-topic for a prospective-parent/student knowledge base
@@ -15,7 +15,7 @@ from xml.etree import ElementTree
 import httpx
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from school_config import (
+from site_config import (
     SITE_ROOT,
     SITEMAP_URL,
     ROBOTS_DISALLOWED_PATHS,

@@ -26,9 +26,9 @@ from chatbot import (
     get_chroma_db, get_relevant_documents, make_prompt, _chroma_client,
     generate_title, _fallback_title,
 )
-from school_config import (
-    SCHOOL_FACTS,
-    SCHOOL_SHORT_NAME,
+from site_config import (
+    SITE_FACTS,
+    SITE_SHORT_NAME,
     GREETING_MESSAGE,
     DEFERRAL_MESSAGE,
     SPAM_GIBBERISH_MESSAGE,
@@ -163,10 +163,10 @@ def serve_chatbot_js():
         return send_file(js_path)
     return "File not found", 404
 
-@app.route('/school_config.js', methods=['GET'])
-def serve_school_config_js():
+@app.route('/site_config.js', methods=['GET'])
+def serve_site_config_js():
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    js_path = os.path.join(base_dir, 'frontend', 'school_config.js')
+    js_path = os.path.join(base_dir, 'frontend', 'site_config.js')
     if os.path.exists(js_path):
         return send_file(js_path)
     return "File not found", 404
@@ -191,14 +191,14 @@ def serve_chatbot_iframe():
 @app.route('/', methods=['GET'])
 def home():
     return jsonify({
-        "message": f"{SCHOOL_SHORT_NAME} AI Server is running",
+        "message": f"{SITE_SHORT_NAME} AI Server is running",
         "endpoints": {
             "health": "/health (GET)",
             "chat": "/chat (POST) - requires JSON body"
         }
     }), 200
 
-print(f"--- {SCHOOL_SHORT_NAME} AI Server Starting ---")
+print(f"--- {SITE_SHORT_NAME} AI Server Starting ---")
 
 # 3. Initialize the Database
 try:
@@ -470,14 +470,14 @@ def chat_endpoint():
 
         # Spawn faithfulness scoring on a daemon thread so the user is not blocked.
         # Only genuine answers grounded in retrieved chunks are audited; greetings
-        # and canned deferrals are skipped. The judge is handed SCHOOL_FACTS so
-        # answers drawn from the system prompt's authoritative facts (tuition,
-        # enrollment numbers) are not mis-flagged as hallucinations.
+        # and canned deferrals are skipped. The judge is handed SITE_FACTS so
+        # answers drawn from the system prompt's authoritative facts (hours,
+        # locations, headline numbers) are not mis-flagged as hallucinations.
         if should_score:
             conversation_id = str(uuid.uuid4())
             threading.Thread(
                 target=score_faithfulness_async,
-                args=(user_query, relevant_chunks, response_text, conversation_id, SCHOOL_FACTS),
+                args=(user_query, relevant_chunks, response_text, conversation_id, SITE_FACTS),
                 daemon=True,
             ).start()
 

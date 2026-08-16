@@ -13,9 +13,9 @@ from chunking import chunk_page
 from extraction import MIN_CHARS, extract_content, extract_title
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from school_config import USER_AGENT
+from site_config import USER_AGENT
 
-CONCURRENCY = 4          # polite parallelism for a school site
+CONCURRENCY = 4          # polite parallelism for a small site
 REQUEST_DELAY = 0.3      # seconds between requests per worker
 RETRIES = 3
 

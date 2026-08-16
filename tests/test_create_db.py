@@ -63,7 +63,7 @@ def _passing_inputs():
     for url, needle in KEY_PAGE_CHECKS.items():
         stats.append(_stat(url))
         chunks.extend(_chunks_for(url, needle=needle))
-    fillers = [f"https://www.example-school.org/p{i}" for i in range(50)]
+    fillers = [f"https://www.example-site.org/p{i}" for i in range(50)]
     for url in fillers:
         stats.append(_stat(url))
         chunks.extend(_chunks_for(url))
@@ -78,7 +78,7 @@ def test_validate_passes_on_good_run():
 
 def test_validate_fails_on_low_success_rate():
     stats, chunks = _passing_inputs()
-    stats.extend(_stat(f"https://www.example-school.org/f{i}", status="fetch_failed", chunks=0)
+    stats.extend(_stat(f"https://www.example-site.org/f{i}", status="fetch_failed", chunks=0)
                  for i in range(20))
     errors = validate(stats, chunks)
     assert any("success rate" in e for e in errors)
@@ -86,24 +86,25 @@ def test_validate_fails_on_low_success_rate():
 
 def test_validate_fails_when_key_page_missing_text():
     stats, chunks = _passing_inputs()
-    # Break the key page whose needle is "tuition" (from school_config.KEY_PAGE_CHECKS)
-    tuition = next(url for url, needle in KEY_PAGE_CHECKS.items() if needle == "tuition")
-    chunks = [c for c in chunks if c["metadata"]["source"] != tuition]
-    chunks.extend(_chunks_for(tuition, needle="unrelated"))
+    # Break the first configured key page, whatever site_config.KEY_PAGE_CHECKS
+    # happens to hold — the gate is what's under test, not any one page.
+    url, needle = next(iter(KEY_PAGE_CHECKS.items()))
+    chunks = [c for c in chunks if c["metadata"]["source"] != url]
+    chunks.extend(_chunks_for(url, needle="unrelated"))
     errors = validate(stats, chunks)
-    assert any("tuition" in e.lower() for e in errors)
+    assert any(needle in e.lower() for e in errors)
 
 
 def test_validate_dead_urls_do_not_count_against_success_rate():
     stats, chunks = _passing_inputs()
     # 30 dead sitemap URLs would sink the rate if counted (63/93 = 68%)
-    stats.extend(_stat(f"https://www.example-school.org/dead{i}", status="dead_url", chunks=0)
+    stats.extend(_stat(f"https://www.example-site.org/dead{i}", status="dead_url", chunks=0)
                  for i in range(30))
     assert validate(stats, chunks) == []
 
 
 def test_validate_subset_mode_skips_global_checks():
-    url = "https://www.example-school.org/p1"
+    url = "https://www.example-site.org/p1"
     errors = validate([_stat(url)], _chunks_for(url), subset=True)
     assert errors == []
 
@@ -111,30 +112,30 @@ def test_validate_subset_mode_skips_global_checks():
 def test_swap_preserves_manual_sources_and_replaces_crawled():
     live, staging = FakeCollection(), FakeCollection()
     live.add(ids=["manual_1"], documents=["manual doc"],
-             metadatas=[{"source": "school_profile.txt"}], embeddings=[[0.1]])
-    live.add(ids=["https://www.example-school.org/a_chunk_0"], documents=["old"],
-             metadatas=[{"source": "https://www.example-school.org/a"}], embeddings=[[0.2]])
-    staging.add(ids=["https://www.example-school.org/a_chunk_0",
-                     "https://www.example-school.org/a_chunk_1"],
+             metadatas=[{"source": "site_profile.txt"}], embeddings=[[0.1]])
+    live.add(ids=["https://www.example-site.org/a_chunk_0"], documents=["old"],
+             metadatas=[{"source": "https://www.example-site.org/a"}], embeddings=[[0.2]])
+    staging.add(ids=["https://www.example-site.org/a_chunk_0",
+                     "https://www.example-site.org/a_chunk_1"],
                 documents=["new0", "new1"],
-                metadatas=[{"source": "https://www.example-school.org/a"}] * 2,
+                metadatas=[{"source": "https://www.example-site.org/a"}] * 2,
                 embeddings=[[0.3], [0.4]])
     kept_foreign, removed = swap_into_live(live, staging, prune=False)
-    assert "school_profile.txt" in kept_foreign
+    assert "site_profile.txt" in kept_foreign
     assert removed == 1
-    assert live.rows["https://www.example-school.org/a_chunk_0"]["document"] == "new0"
-    assert "https://www.example-school.org/a_chunk_1" in live.rows
+    assert live.rows["https://www.example-site.org/a_chunk_0"]["document"] == "new0"
+    assert "https://www.example-site.org/a_chunk_1" in live.rows
     assert "manual_1" in live.rows
 
 
 def test_swap_prune_removes_everything_not_staged():
     live, staging = FakeCollection(), FakeCollection()
     live.add(ids=["manual_1"], documents=["manual doc"],
-             metadatas=[{"source": "school_profile.txt"}], embeddings=[[0.1]])
-    staging.add(ids=["https://www.example-school.org/a_chunk_0"], documents=["new0"],
-                metadatas=[{"source": "https://www.example-school.org/a"}],
+             metadatas=[{"source": "site_profile.txt"}], embeddings=[[0.1]])
+    staging.add(ids=["https://www.example-site.org/a_chunk_0"], documents=["new0"],
+                metadatas=[{"source": "https://www.example-site.org/a"}],
                 embeddings=[[0.3]])
     kept_foreign, removed = swap_into_live(live, staging, prune=True)
     assert kept_foreign == set()
     assert "manual_1" not in live.rows
-    assert "https://www.example-school.org/a_chunk_0" in live.rows
+    assert "https://www.example-site.org/a_chunk_0" in live.rows

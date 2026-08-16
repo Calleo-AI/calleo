@@ -21,7 +21,7 @@ def _page(url, html="", success=True, error="", fit_markdown=""):
 
 
 def test_build_chunks_success_page():
-    url = "https://www.example-school.org/clubs/robotics"
+    url = "https://www.example-site.org/clubs/robotics"
     chunks, stats = build_chunks([_page(url, CONTENT_HTML)])
     assert stats[0]["status"] == "ok"
     assert stats[0]["strategy"] == "selector"
@@ -40,7 +40,7 @@ def test_build_chunks_failed_fetch():
 
 def test_build_chunks_thin_page_skipped():
     chunks, stats = build_chunks(
-        [_page("https://www.example-school.org/x", "<html><body><p>tiny</p></body></html>")]
+        [_page("https://www.example-site.org/x", "<html><body><p>tiny</p></body></html>")]
     )
     assert chunks == []
     assert stats[0]["status"] == "thin"
@@ -48,7 +48,7 @@ def test_build_chunks_thin_page_skipped():
 
 def test_build_chunks_http_404_is_dead_url():
     chunks, stats = build_chunks(
-        [_page("https://www.example-school.org/faqs", success=False, error="HTTP 404")]
+        [_page("https://www.example-site.org/faqs", success=False, error="HTTP 404")]
     )
     assert chunks == []
     assert stats[0]["status"] == "dead_url"
@@ -58,7 +58,7 @@ def test_build_chunks_soft_404_boilerplate_is_dead_url():
     body = ("<html><body><div class='page-row'><div class='page-col span24'><p>"
             + "We're sorry. But the page or file you requested does not exist. " * 10
             + "</p></div></div></body></html>")
-    chunks, stats = build_chunks([_page("https://www.example-school.org/old-page", body)])
+    chunks, stats = build_chunks([_page("https://www.example-site.org/old-page", body)])
     assert chunks == []
     assert stats[0]["status"] == "dead_url"
     assert stats[0]["error"] == "soft 404"

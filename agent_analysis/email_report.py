@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 import markdown
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
-from school_config import SCHOOL_SHORT_NAME
+from site_config import SITE_SHORT_NAME
 
 
 EMAIL_CSS = """
@@ -50,7 +50,7 @@ def build_html_email(md_text: str, report_date: str) -> str:
       {html_body}
     </div>
     <div class="footer">
-      Generated automatically by the {SCHOOL_SHORT_NAME} AI analysis agent.
+      Generated automatically by the {SITE_SHORT_NAME} AI analysis agent.
     </div>
   </div>
 </body>

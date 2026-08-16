@@ -1,6 +1,6 @@
 <!--
-  School Chatbot — parent-page embed
-  Paste this entire block into an HTML embed widget on your school's site
+  Site Chatbot — parent-page embed
+  Paste this entire block into an HTML embed widget on your site
   (verified with the Blackbaud CMS, but any CMS that accepts raw HTML works).
   EDIT ME: replace https://YOUR-CHATBOT-HOST.example below with the host that
   serves chatbot_iframe.html, and adjust the brand color in the hint popup
@@ -8,7 +8,7 @@
   the CSS variables defined in chatbot.css).
 -->
 <style>
-  #school-chatbot-iframe {
+  #site-chatbot-iframe {
     position: fixed;
     bottom: 30px;
     right: 35px;
@@ -26,16 +26,16 @@
   }
 </style>
 
-<iframe id="school-chatbot-iframe"
+<iframe id="site-chatbot-iframe"
     src="https://YOUR-CHATBOT-HOST.example/chatbot_iframe.html"
-    title="School Chatbot"
+    title="Site Chatbot"
     loading="lazy"
     allow="clipboard-write">
 </iframe>
 
 <script>
 (function() {
-    const iframe = document.getElementById('school-chatbot-iframe');
+    const iframe = document.getElementById('site-chatbot-iframe');
     let dragState = null;
     let isOpen = false;
     let isSidebarOpen = false;
@@ -287,4 +287,4 @@
         });
     })();
 </script>
-<!-- End School Chatbot Embed -->
+<!-- End Site Chatbot Embed -->

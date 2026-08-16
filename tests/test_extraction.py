@@ -14,8 +14,8 @@ from extraction import (
 )
 
 FIXTURES = Path(__file__).parent / "fixtures"
-TUITION_URL = "https://www.example-school.org/admissions/tuition-and-fees"
-GLANCE_URL = "https://www.example-school.org/about/at-a-glance"
+TUITION_URL = "https://www.example-site.org/admissions/tuition-and-fees"
+GLANCE_URL = "https://www.example-site.org/about/at-a-glance"
 
 
 def _fixture(name):
@@ -40,23 +40,23 @@ def test_selector_output_has_no_chrome_or_junk():
 def test_handbook_template_extracts():
     text, strategy = extract_content(
         _fixture("handbook-mission.html"),
-        "https://www.example-school.org/family-handbook/mission-and-values",
+        "https://www.example-site.org/family-handbook/mission-and-values",
     )
     assert len(text) >= MIN_CHARS
     assert strategy == "selector"
 
 
 def test_fallback_to_trafilatura_when_no_page_rows():
-    para = "<p>Example School provides rich opportunities for students to learn and grow. </p>"
+    para = "<p>Example Site provides rich opportunities for the community to learn and grow. </p>"
     html = f"<html><head><title>T</title></head><body><article><h1>Programme</h1>{para * 20}</article></body></html>"
-    text, strategy = extract_content(html, "https://www.example-school.org/x")
+    text, strategy = extract_content(html, "https://www.example-site.org/x")
     assert strategy == "trafilatura"
-    assert "opportunities for students" in text
+    assert "opportunities for the community" in text
 
 
 def test_thin_page_returns_best_effort_below_min():
     text, _ = extract_content("<html><body><p>tiny</p></body></html>",
-                              "https://www.example-school.org/x", fit_markdown="tiny")
+                              "https://www.example-site.org/x", fit_markdown="tiny")
     assert len(text) < MIN_CHARS  # caller is responsible for skipping
 
 
@@ -77,7 +77,7 @@ def test_trafilatura_fallback_does_not_extract_nav_menus():
         "<div class='page-row'><p>1 / 37</p></div>"
         "</body></html>"
     )
-    text, _ = extract_content(html, "https://www.example-school.org/gallery")
+    text, _ = extract_content(html, "https://www.example-site.org/gallery")
     assert len(text) < MIN_CHARS
     assert "Menu Item Number" not in text
 

@@ -32,8 +32,8 @@ Browser iframe  →  chatbot.js  →  Flask /chat
 
 | Path | Purpose |
 |---|---|
-| `school_config.py` | **Edit me** — all organization-specific backend config |
-| `frontend/school_config.js` | **Edit me** — all organization-specific widget config |
+| `site_config.py` | **Edit me** — all organization-specific backend config |
+| `frontend/site_config.js` | **Edit me** — all organization-specific widget config |
 | `agent_chatbot/server.py` | Flask API (rate limiting, spam detection, chat endpoint) |
 | `agent_chatbot/chatbot.py` | Prompt construction, ChromaDB retrieval |
 | `agent_analysis/analysis_agent.py` | Weekly conversation-trend report + email |
@@ -74,37 +74,33 @@ Then:
 
 ## Configure for your organization
 
-The repo ships configured for a fictional **Example School** so everything runs
+The repo ships configured for a fictional **Example Site** so everything runs
 out of the box. Two config files carry every organization-specific value, and a
-third holds branding colors.
+third holds branding colors. Nothing in the config, the crawler, or the prompts
+assumes a particular kind of organization — `SITE_NAME = "Rivertown Food Bank"`
+works exactly as well as a school name.
 
-> **A note on naming for NGOs:** the config files and their fields are named
-> `school_*` / `SCHOOL_*` because Calleo started as a school project. They are
-> just labels — read every one of them as "your organization." `SCHOOL_NAME =
-> "Rivertown Food Bank"` works exactly as well as a school name, and nothing in
-> the crawler, retrieval, or prompt assumes an educational site.
-
-### `school_config.py` (backend)
+### `site_config.py` (backend)
 
 | Field | What it controls |
 |---|---|
-| `SCHOOL_NAME` / `SCHOOL_SHORT_NAME` | Your organization's name — prompts, canned replies, report headers |
+| `SITE_NAME` / `SITE_SHORT_NAME` | Your organization's name — prompts, canned replies, report headers |
 | `SITE_ROOT` / `SITEMAP_URL` | Where the crawler discovers pages (Blackbaud sites often serve `/sitemap`, not `/sitemap.xml`) |
 | `ROBOTS_DISALLOWED_PATHS` | Top-level paths from your robots.txt |
 | `EXCLUDED_URL_PATTERNS` | Regexes for off-topic pages (careers, donation checkout, dated news…) |
 | `USER_AGENT` | Crawler User-Agent header |
 | `TITLE_SUFFIX_RE` | Strips your site's suffix from page titles |
 | `KEY_PAGE_CHECKS` | Rebuild sanity gate: these pages must contain these words |
-| `SCHOOL_FACTS` | Authoritative facts injected into every prompt (also grounds the faithfulness judge) |
+| `SITE_FACTS` | Authoritative facts injected into every prompt (also grounds the faithfulness judge) |
 | `CUSTOM_PROMPT_RULES` | Rules specific to your organization, prepended to the system prompt |
 | `DESIGNED_BY` | Credit line when users ask who built the bot (`""` to omit) |
 | `GREETING_MESSAGE` / `DEFERRAL_MESSAGE` / … | Canned responses (single source of truth — the dashboard classifies unanswered questions by matching `DEFERRAL_MESSAGE`) |
 
-### `frontend/school_config.js` (chat widget)
+### `frontend/site_config.js` (chat widget)
 
 | Field | What it controls |
 |---|---|
-| `schoolName` | Welcome text (`{school}` placeholder in translations) |
+| `siteName` | Welcome text (`{site}` placeholder in translations) |
 | `contactEmail` | Contact banner + welcome screen |
 | `apiBase` | Chat server origin (`""` = same origin) |
 | `storagePrefix` | localStorage namespace |
@@ -170,8 +166,8 @@ pytest tests/                                  # 228 tests, no network needed
 node --test tests/frontend/test_chat_history_store.mjs
 ```
 
-Tests assert against the shipped Example School config; if you change
-`school_config.py`, a few config-reflecting assertions will reflect your values.
+Tests assert against the shipped Example Site config; if you change
+`site_config.py`, a few config-reflecting assertions will reflect your values.
 
 ## Contributing
 

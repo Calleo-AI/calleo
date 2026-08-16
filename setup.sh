@@ -66,7 +66,7 @@ else
     info "Creating .env from .env.example…"
     cp "$REPO/.env.example" "$ENV_FILE"
     # Default CHROMA_DB_PATH: a sibling directory that lives outside the repo
-    CHROMA_DEFAULT="/home/$(whoami)/school_chatbot_db"
+    CHROMA_DEFAULT="/home/$(whoami)/site_chatbot_db"
     sed -i "s|^CHROMA_DB_PATH=.*|CHROMA_DB_PATH=$CHROMA_DEFAULT|" "$ENV_FILE"
     warn ".env created with placeholder values."
     warn "Fill in GEMINI_API_KEY, OPENROUTER_API_KEY, and CHROMA_DB_PATH before continuing."

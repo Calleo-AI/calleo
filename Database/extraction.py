@@ -1,9 +1,9 @@
 """
-extraction.py — Deterministic main-content extraction for the school website.
+extraction.py — Deterministic main-content extraction for the configured website.
 
 Chain (escalates when output < MIN_CHARS):
   1. selector_extract  — BeautifulSoup tuned to Blackbaud CMS markup (very
-       common for independent-school sites): keep div.page-row regions, drop
+       common for school and non-profit sites): keep div.page-row regions, drop
        narrow promo sidebars (span1-7 cols), strip nav/menus/forms and
        .element-invisible a11y stubs. Non-Blackbaud sites simply produce no
        page-row matches and fall through to trafilatura.
@@ -21,7 +21,7 @@ from pathlib import Path
 from bs4 import BeautifulSoup
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from school_config import TITLE_SUFFIX_RE
+from site_config import TITLE_SUFFIX_RE
 
 MIN_CHARS = 200
 
