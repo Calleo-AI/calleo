@@ -91,7 +91,7 @@ test("clearAll empties the store", () => {
 
 test("corrupted JSON under storage key is recovered as empty store", () => {
     localStorage.clear();
-    localStorage.setItem("school_chatbot_chat_history", "{not valid json");
+    localStorage.setItem("site_chatbot_chat_history", "{not valid json");
     assert.deepEqual(ChatHistoryStore.list(), []);
 });
 

@@ -8,9 +8,9 @@
 "use strict";
 
 const ChatHistoryStore = (() => {
-    // Key namespace comes from school_config.js when present (browser); the
+    // Key namespace comes from site_config.js when present (browser); the
     // Node unit tests evaluate this file with a bare `window`, so fall back.
-    const PREFIX = (window.SCHOOL_CONFIG && window.SCHOOL_CONFIG.storagePrefix) || "school_chatbot";
+    const PREFIX = (window.SITE_CONFIG && window.SITE_CONFIG.storagePrefix) || "site_chatbot";
     const KEY = `${PREFIX}_chat_history`;
     const ACTIVE_KEY = `${PREFIX}_active_chat_id`;
     const MAX_CHATS = 50;

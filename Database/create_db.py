@@ -25,7 +25,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-import school_config
+import site_config
 from db_utils import delete_collection, get_chroma_db
 from discovery import get_site_urls
 from pipeline import build_chunks, crawl_pages, setup_windows_event_loop
@@ -37,7 +37,7 @@ EMBED_SLEEP = 12  # seconds between batches: Gemini embedding quota is 100 req/m
 
 MIN_PAGE_SUCCESS_RATE = 0.90
 MIN_TOTAL_CHUNKS = 200
-KEY_PAGE_CHECKS = school_config.KEY_PAGE_CHECKS
+KEY_PAGE_CHECKS = site_config.KEY_PAGE_CHECKS
 
 REPORT_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "rebuild_report.txt")
 
@@ -131,7 +131,7 @@ def swap_into_live(live, staging, prune=False):
 
 
 def write_report(page_stats, all_chunks, errors, kept_foreign=None, path=REPORT_PATH):
-    lines = [f"{school_config.SCHOOL_SHORT_NAME} knowledge-base rebuild report", "=" * 60, ""]
+    lines = [f"{site_config.SITE_SHORT_NAME} knowledge-base rebuild report", "=" * 60, ""]
     counts = {}
     for p in page_stats:
         counts[p["status"]] = counts.get(p["status"], 0) + 1
@@ -184,8 +184,8 @@ async def run(args):
         urls = get_site_urls()
     except Exception as e:
         sys.exit(
-            f"ERROR: could not fetch the sitemap at {school_config.SITEMAP_URL}: {e}\n"
-            "Check SITE_ROOT / SITEMAP_URL in school_config.py - some CMSes "
+            f"ERROR: could not fetch the sitemap at {site_config.SITEMAP_URL}: {e}\n"
+            "Check SITE_ROOT / SITEMAP_URL in site_config.py - some CMSes "
             "(e.g. Blackbaud) serve the sitemap at /sitemap instead of /sitemap.xml."
         )
     if args.max_pages:

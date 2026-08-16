@@ -20,10 +20,10 @@ import json
 from datetime import datetime, timedelta
 
 # llm_client (repo root) is the single source of truth for model ids;
-# school_config is the single source of truth for the canned deferral text.
+# site_config is the single source of truth for the canned deferral text.
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 import llm_client
-import school_config
+import site_config
 
 DEFAULT_MODEL = llm_client.model_for("chat")
 MODEL_DISPLAY_NAME = "Qwen3.5 397B"
@@ -39,7 +39,7 @@ SESSION_GAP_MINUTES = 30
 # "unanswered questions".
 FALLBACK_MARKERS = [
     # The server's deferral and this marker are the same constant by construction.
-    school_config.DEFERRAL_MESSAGE.lower(),
+    site_config.DEFERRAL_MESSAGE.lower(),
     "i don't have that information",
     "does not contain information",
     "passage does not mention",
@@ -49,7 +49,10 @@ FALLBACK_MARKERS = [
     "error: database not initialized",
 ]
 
-# Keyword -> topic mapping for the FAQ heatmap and topic threads.
+# Keyword -> topic mapping for the FAQ heatmap and topic threads. First match
+# wins, so order matters. This default list covers the topics a school or an
+# NGO site tends to get asked about; trim or extend it for your deployment —
+# an unmatched query just falls through to "Other".
 TOPIC_KEYWORDS = [
     (r'\b(admission|apply|application)\b', 'Admissions'),
     (r'\b(enroll|register|registration)\b', 'Enrollment'),
@@ -62,7 +65,10 @@ TOPIC_KEYWORDS = [
     (r'\b(uniform|dress code)\b', 'Uniforms'),
     (r'\b(lunch|cafeteria|food|meal)\b', 'Lunch & Food'),
     (r'\b(bus|transportation|commute|shuttle)\b', 'Transportation'),
-    (r'\b(visit|tour|open house)\b', 'School Tours'),
+    (r'\b(visit|tour|open house)\b', 'Tours & Visits'),
+    (r'\b(donate|donation|donor|fundrais\w*)\b', 'Donations'),
+    (r'\b(volunteer\w*)\b', 'Volunteering'),
+    (r'\b(eligib\w*|assistance|referral)\b', 'Services & Eligibility'),
     (r'\b(contact|phone|email|reach|call)\b', 'Contact Info'),
     (r'\b(location|address|map|direction)\b', 'Location'),
     (r'\b(schedule|hours|time|calendar|date|timetable)\b', 'Schedules'),

@@ -2,13 +2,21 @@
 
 *Calleo* — Latin for "I am clever." Gives your school or NGO website a mind.
 
-Calleo is a self-hosted RAG chatbot template for your websites. It crawls
-your site into a ChromaDB vector database, answers user
+Calleo is a self-hosted RAG chatbot template for schools and NGOs. It crawls
+your organization's site into a ChromaDB vector database, answers visitor
 questions through an embeddable chat widget (7 languages), and ships with an
 analytics dashboard, automated faithfulness scoring, and a weekly analysis
 agent that emails a trend report.
 
-Built by students from Crescent School, Toronto, alongside the support from faculty and staff. It is the first of our opensource projects with many to come (hopefully). It is battle-tested in production on Crescent School's website; released under the MIT license.
+Nothing in the pipeline assumes a school: if your content lives on a public
+website, Calleo can answer questions about it — admissions and programs for a
+school, or services, eligibility, and donation info for an NGO. Point it at
+your sitemap and fill in two config files.
+
+Built by students at Crescent School, Toronto, with the support of faculty and
+staff. It is the first of our open-source projects, with many more to come (we
+hope). Battle-tested in production on Crescent School's website; released under
+the MIT license.
 
 ## Architecture
 
@@ -24,8 +32,8 @@ Browser iframe  →  chatbot.js  →  Flask /chat
 
 | Path | Purpose |
 |---|---|
-| `school_config.py` | **Edit me** — all school-specific backend config |
-| `frontend/school_config.js` | **Edit me** — all school-specific widget config |
+| `site_config.py` | **Edit me** — all organization-specific backend config |
+| `frontend/site_config.js` | **Edit me** — all organization-specific widget config |
 | `agent_chatbot/server.py` | Flask API (rate limiting, spam detection, chat endpoint) |
 | `agent_chatbot/chatbot.py` | Prompt construction, ChromaDB retrieval |
 | `agent_analysis/analysis_agent.py` | Weekly conversation-trend report + email |
@@ -39,7 +47,7 @@ Browser iframe  →  chatbot.js  →  Flask /chat
 ## Quickstart
 
 ```bash
-git clone https://github.com/Kevin09sun/calleo.git
+git clone https://github.com/Calleo-AI/calleo.git
 cd calleo
 
 # Linux VM: one-shot provisioning (venv, deps, .env template, cron jobs)
@@ -58,38 +66,41 @@ Then:
 
 1. **Fill in `.env`** — `GEMINI_API_KEY`, `OPENROUTER_API_KEY`, `CHROMA_DB_PATH`
    (see `.env.example` for every option).
-2. **Configure your school** — edit the two config files below.
+2. **Configure your organization** — edit the config files below.
 3. **Build the knowledge base**: `python Database/create_db.py`
    (try `--dry-run` first to preview the crawl without writing anything).
 4. **Run the server**: `cd agent_chatbot && python server.py`
    then open `http://localhost:5000/chatbot_iframe.html`.
 
-## Configure for your school
+## Configure for your organization
 
-The repo ships configured for a fictional **Example School** so everything runs
-out of the box. Three files carry every school-specific value:
+The repo ships configured for a fictional **Example Site** so everything runs
+out of the box. Two config files carry every organization-specific value, and a
+third holds branding colors. Nothing in the config, the crawler, or the prompts
+assumes a particular kind of organization — `SITE_NAME = "Rivertown Food Bank"`
+works exactly as well as a school name.
 
-### `school_config.py` (backend)
+### `site_config.py` (backend)
 
 | Field | What it controls |
 |---|---|
-| `SCHOOL_NAME` / `SCHOOL_SHORT_NAME` | Prompts, canned replies, report headers |
+| `SITE_NAME` / `SITE_SHORT_NAME` | Your organization's name — prompts, canned replies, report headers |
 | `SITE_ROOT` / `SITEMAP_URL` | Where the crawler discovers pages (Blackbaud sites often serve `/sitemap`, not `/sitemap.xml`) |
 | `ROBOTS_DISALLOWED_PATHS` | Top-level paths from your robots.txt |
-| `EXCLUDED_URL_PATTERNS` | Regexes for off-topic pages (careers, donations, dated news…) |
+| `EXCLUDED_URL_PATTERNS` | Regexes for off-topic pages (careers, donation checkout, dated news…) |
 | `USER_AGENT` | Crawler User-Agent header |
 | `TITLE_SUFFIX_RE` | Strips your site's suffix from page titles |
 | `KEY_PAGE_CHECKS` | Rebuild sanity gate: these pages must contain these words |
-| `SCHOOL_FACTS` | Authoritative facts injected into every prompt (also grounds the faithfulness judge) |
-| `CUSTOM_PROMPT_RULES` | School-specific rules for the system prompt |
+| `SITE_FACTS` | Authoritative facts injected into every prompt (also grounds the faithfulness judge) |
+| `CUSTOM_PROMPT_RULES` | Rules specific to your organization, prepended to the system prompt |
 | `DESIGNED_BY` | Credit line when users ask who built the bot (`""` to omit) |
 | `GREETING_MESSAGE` / `DEFERRAL_MESSAGE` / … | Canned responses (single source of truth — the dashboard classifies unanswered questions by matching `DEFERRAL_MESSAGE`) |
 
-### `frontend/school_config.js` (chat widget)
+### `frontend/site_config.js` (chat widget)
 
 | Field | What it controls |
 |---|---|
-| `schoolName` | Welcome text (`{school}` placeholder in translations) |
+| `siteName` | Welcome text (`{site}` placeholder in translations) |
 | `contactEmail` | Contact banner + welcome screen |
 | `apiBase` | Chat server origin (`""` = same origin) |
 | `storagePrefix` | localStorage namespace |
@@ -98,7 +109,7 @@ out of the box. Three files carry every school-specific value:
 ### `frontend/chatbot.css` (branding)
 
 The `:root` block at the top defines `--brand-*` color variables — swap in your
-school's palette. `frontend/embed-snippet.html` and `dashboard.html` each have
+own palette. `frontend/embed-snippet.html` and `dashboard.html` each have
 `EDIT ME` comments for the values they can't share (embed host, hint-popup
 color, dashboard API base).
 
@@ -136,7 +147,7 @@ python Database/create_db.py                 # full rebuild (snapshot → crawl 
 python Database/create_db.py --dry-run       # crawl + report only, no DB writes
 python Database/create_db.py --max-pages 8   # quick smoke test
 python Database/update_db.py <URL>           # refresh specific pages
-python Database/snapshot_db.py --rollback    # restore the last snapshot
+python Database/snapshot_db.py --rollback --collection full_database   # restore the last snapshot
 pytest tests/                                # run the test suite
 ```
 
@@ -155,13 +166,13 @@ pytest tests/                                  # 228 tests, no network needed
 node --test tests/frontend/test_chat_history_store.mjs
 ```
 
-Tests assert against the shipped Example School config; if you change
-`school_config.py`, a few config-reflecting assertions will reflect your values.
+Tests assert against the shipped Example Site config; if you change
+`site_config.py`, a few config-reflecting assertions will reflect your values.
 
 ## Contributing
 
-PRs welcome. Run `pytest tests/` before submitting. Please keep school-specific
-values out of code — they belong in the config files.
+PRs welcome. Run `pytest tests/` before submitting. Please keep
+organization-specific values out of code — they belong in the config files.
 
 ## License
 

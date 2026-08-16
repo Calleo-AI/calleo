@@ -67,7 +67,7 @@ def analyze_with_openrouter(conversations):
         conversation_text += f"Interaction {i}:\nUser: {conv['query']}\nAI: {conv['response']}\n\n"
 
     prompt = f"""
-    You are an expert data analyst for a school chatbot.
+    You are an expert data analyst for a website chatbot.
     Analyze the following conversation logs and generate a report.
 
     DATA:
@@ -77,7 +77,7 @@ def analyze_with_openrouter(conversations):
     1. **Identify Trends**: What are the top 3-5 most frequent topics or questions asked?
     2. **Unanswered Questions**: Identify questions where the AI failed to provide a helpful answer (e.g., responded with "I don't have that information" or similar).
     3. **Content Gaps**: Based on the unanswered questions, what specific information should be added to the handbook/database?
-    4. **Recommendations**: Suggest any improvements for the chatbot's responses or what information needs to be added to the school website in order to produce a satisfying answer to the user's query.
+    4. **Recommendations**: Suggest any improvements for the chatbot's responses or what information needs to be added to the website in order to produce a satisfying answer to the user's query.
 
     OUTPUT FORMAT:
     Produce a clean Markdown report covering the four sections above. Do NOT include a date header or interaction count — those are prepended automatically. Begin directly with the analysis (e.g., a "## 1. Trends" heading).

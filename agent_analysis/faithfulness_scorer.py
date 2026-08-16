@@ -32,9 +32,9 @@ def score_faithfulness_async(query, retrieved_chunks, response_text, conversatio
     joined_chunks = "\n---\n".join(retrieved_chunks)
     trusted_block = trusted_facts.strip() if trusted_facts else "(none provided)"
 
-    judge_prompt = f"""You are a factual faithfulness auditor for a school enrollment chatbot.
+    judge_prompt = f"""You are a factual faithfulness auditor for a website assistant chatbot.
 
-RETRIEVED CONTEXT (from the school's knowledge base):
+RETRIEVED CONTEXT (from the site's knowledge base):
 {joined_chunks}
 
 TRUSTED BACKGROUND FACTS (authoritative facts the assistant is always permitted to state, even when they are absent from the retrieved context):

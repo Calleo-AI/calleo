@@ -1,6 +1,6 @@
 """Structural tests for the chatbot embed snippet.
 
-frontend/embed-snippet.html is the code pasted into the school's CMS —
+frontend/embed-snippet.html is the code pasted into the site's CMS —
 anything missing from it is missing from the live page. These tests pin
 the hint popup block so it cannot silently drop out of the snippet again.
 """
@@ -15,7 +15,7 @@ SOUP = BeautifulSoup(SNIPPET_HTML, "html.parser")
 
 
 def test_widget_iframe_present():
-    iframe = SOUP.find("iframe", id="school-chatbot-iframe")
+    iframe = SOUP.find("iframe", id="site-chatbot-iframe")
     assert iframe is not None
     # Ships with the EDIT ME placeholder host; deployers point it at theirs.
     assert iframe["src"] == "https://YOUR-CHATBOT-HOST.example/chatbot_iframe.html"

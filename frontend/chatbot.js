@@ -1,11 +1,11 @@
-// All school-specific values (name, contact email, API host, translations)
-// come from frontend/school_config.js, which must be loaded first.
-const SCHOOL_CONFIG = window.SCHOOL_CONFIG;
-if (!SCHOOL_CONFIG) {
-    throw new Error("school_config.js must be loaded before chatbot.js — see chatbot_iframe.html");
+// All site-specific values (name, contact email, API host, translations)
+// come from frontend/site_config.js, which must be loaded first.
+const SITE_CONFIG = window.SITE_CONFIG;
+if (!SITE_CONFIG) {
+    throw new Error("site_config.js must be loaded before chatbot.js — see chatbot_iframe.html");
 }
-const CONTACT_EMAIL = SCHOOL_CONFIG.contactEmail;
-const STORAGE_PREFIX = SCHOOL_CONFIG.storagePrefix || "school_chatbot";
+const CONTACT_EMAIL = SITE_CONFIG.contactEmail;
+const STORAGE_PREFIX = SITE_CONFIG.storagePrefix || "site_chatbot";
 
 const chatbotToggler = document.querySelector(".chatbot-toggler");
 const chatbot = document.querySelector(".chatbot");
@@ -59,10 +59,10 @@ const contactBannerClose = document.getElementById('contact-banner-close');
 let contactBannerShown = false;
 
 const welcomeTranslations = {};
-for (const [lang, t] of Object.entries(SCHOOL_CONFIG.welcomeTranslations)) {
+for (const [lang, t] of Object.entries(SITE_CONFIG.welcomeTranslations)) {
     welcomeTranslations[lang] = {
         ...t,
-        intro: t.intro.replace("{school}", SCHOOL_CONFIG.schoolName),
+        intro: t.intro.replace("{site}", SITE_CONFIG.siteName),
     };
 }
 
@@ -383,7 +383,7 @@ const showWelcome = () => {
 
 
 // after
-const API_URL = (SCHOOL_CONFIG.apiBase || "") + "/chat";
+const API_URL = (SITE_CONFIG.apiBase || "") + "/chat";
 
 const SESSION_ID = localStorage.getItem(`${STORAGE_PREFIX}_session_id`) || crypto.randomUUID();
 localStorage.setItem(`${STORAGE_PREFIX}_session_id`, SESSION_ID);

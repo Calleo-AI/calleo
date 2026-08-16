@@ -74,12 +74,12 @@ class TestMakePrompt:
         assert "AI: My answer" in prompt
 
     def test_prompt_contains_school_facts_and_custom_rules(self):
-        import school_config
+        import site_config
         prompt = make_prompt("query", "passage")
-        assert school_config.SCHOOL_NAME in prompt
-        assert school_config.SCHOOL_FACTS in prompt
+        assert site_config.SITE_NAME in prompt
+        assert site_config.SITE_FACTS in prompt
         # Every configured custom rule is numbered into the Critical Rules list.
-        for rule in school_config.CUSTOM_PROMPT_RULES:
+        for rule in site_config.CUSTOM_PROMPT_RULES:
             assert rule in prompt
         assert "1. " in prompt
 

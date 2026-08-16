@@ -23,7 +23,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import pytest
 import llm_client  # the single LLM seam; tests patch llm_client.chat
-import school_config  # canned messages: tests assert against the same constants the server uses
+import site_config  # canned messages: tests assert against the same constants the server uses
 
 # Patch chatbot.get_chroma_db so the four module-level DB calls in server.py
 # return a mock collection instead of hitting real ChromaDB/Gemini APIs.
@@ -254,8 +254,8 @@ class TestChatEndpoint:
     def test_greeting_hello_returns_200_with_school_mention(self, client):
         resp = client.post("/chat", json={"message": "hello"})
         assert resp.status_code == 200
-        assert resp.get_json()["response"] == school_config.GREETING_MESSAGE
-        assert school_config.SCHOOL_NAME in resp.get_json()["response"]
+        assert resp.get_json()["response"] == site_config.GREETING_MESSAGE
+        assert site_config.SITE_NAME in resp.get_json()["response"]
 
     def test_greeting_hi_returns_200(self, client):
         resp = client.post("/chat", json={"message": "hi"})
@@ -418,7 +418,7 @@ def _sample_collection():
         "User: How do I apply to Example School?\nAI: You can apply online.",
         "User: What is the tuition cost?\nAI: Tuition is $30,000.",
         "User: Do you have a basketball team?\nAI: We field many competitive teams.",
-        f"User: How do I apply?\nAI: {school_config.DEFERRAL_MESSAGE}",
+        f"User: How do I apply?\nAI: {site_config.DEFERRAL_MESSAGE}",
     ]
     metas = [
         {"timestamp": _iso(200)},
@@ -519,8 +519,8 @@ class TestDashboardEndpoints:
     def test_analysis_flags_frustrated_and_reports_model(self, client, monkeypatch):
         # One session with a repeated question + two fallbacks -> frustrated.
         docs = [
-            f"User: where is the school\nAI: {school_config.DEFERRAL_MESSAGE}",
-            f"User: where is the school\nAI: {school_config.DEFERRAL_MESSAGE}",
+            f"User: where is the school\nAI: {site_config.DEFERRAL_MESSAGE}",
+            f"User: where is the school\nAI: {site_config.DEFERRAL_MESSAGE}",
             "User: what programs do you offer\nAI: We offer a broad academic program.",
         ]
         metas = [{"timestamp": _iso(10)}, {"timestamp": _iso(9)}, {"timestamp": _iso(8)}]
@@ -545,4 +545,4 @@ def test_deferral_message_is_a_dashboard_fallback_marker():
     stay the same constant — otherwise deferred answers stop being counted as
     unanswered questions on the dashboard."""
     import dashboard_data
-    assert school_config.DEFERRAL_MESSAGE.lower() in dashboard_data.FALLBACK_MARKERS
+    assert site_config.DEFERRAL_MESSAGE.lower() in dashboard_data.FALLBACK_MARKERS

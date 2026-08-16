@@ -6,7 +6,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "Database"))
 
 from chunking import chunk_page, build_header, WHOLE_PAGE_MAX
 
-URL = "https://www.example-school.org/admissions/dates-and-events"
+URL = "https://www.example-site.org/admissions/dates-and-events"
 TITLE = "Admission Dates & Events"
 
 
@@ -19,11 +19,11 @@ def test_build_header_with_breadcrumb():
 
 
 def test_small_page_stays_whole_with_header():
-    md = "# About\n\nExample School is a K-12 school in Springfield."
+    md = "# About\n\nExample Site is a non-profit based in Springfield."
     chunks = chunk_page(md, TITLE, URL)
     assert len(chunks) == 1
     assert chunks[0]["text"].startswith("Document: ")
-    assert "K-12 school in Springfield" in chunks[0]["text"]
+    assert "non-profit based in Springfield" in chunks[0]["text"]
     assert chunks[0]["metadata"]["source"] == URL
     assert chunks[0]["metadata"]["title"] == TITLE
 
