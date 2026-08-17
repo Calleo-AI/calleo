@@ -891,38 +891,44 @@ body.show-chatbot .chatbot header .lang-select {
    resolves against the IFRAME viewport rather than the chat panel. (.chatbot
    has a transform, which would otherwise make it the containing block and clip
    the sidebar via the panel's overflow:hidden.)
-   The parent page widens the iframe by 200px on the LEFT (the chat panel is
-   pinned to the right edge with a constant width, so it never moves), and the
-   sidebar slides out from behind the panel into that newly-revealed left-edge
-   space — like a card emerging from behind the chat window. */
+
+   It is pinned to the iframe's LEFT edge, which the parent page animates
+   outward by --sidebar-reveal over 0.35s. So the sidebar needs no slide of its
+   own: as the iframe's left edge sweeps out, the sidebar travels with it and is
+   WIPED into view from behind the panel, its right end staying tucked under
+   .chatbot (z-index 9998 vs 9999) until the reveal finishes — a card emerging
+   from behind the chat window.
+
+   The width is the reveal PLUS the panel's left inset. The parent hands the
+   iframe --sidebar-reveal extra px, but the panel's left edge sits
+   --panel-inset-left further in than the iframe's; claiming only the reveal
+   would leave that inset as a transparent gap at the seam. Covering both makes
+   the sidebar's right edge land exactly on the panel's left edge — at every
+   frame, not just at rest. See syncChatWidth() in chatbot.js for the other half
+   of this contract. */
 .chat-sidebar {
     position: fixed;
     left: 0;
     top: 15px;
     bottom: 65px;
-    width: 200px;
+    width: calc(var(--sidebar-reveal) + var(--panel-inset-left));
     padding-top: 8px;
     background: #f5f5f7;
     border-right: 1px solid #e0e0e0;
     border-radius: 15px 0 0 15px;
     overflow: hidden;
-    transform: translateX(-100%);
-    transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
-    will-change: transform;
     display: flex;
     flex-direction: column;
     z-index: 9998;
 }
 
-/* Toggled on <body> by chatbot.js so the sidebar's state is independent of the
-   transformed .chatbot panel. */
-body.sidebar-open .chat-sidebar { transform: translateX(0); }
 .chat-sidebar[hidden] { display: none; }
 
 /* Flatten the chat panel's LEFT corners when the sidebar is open so its edge
    sits flush against the sidebar's flat right edge — no rounded-corner gap.
-   The border-radius transition on .chatbot keeps this change in sync with the
-   sidebar's 0.25s slide. */
+   The 0.35s border-radius transition on .chatbot keeps this change in sync with
+   the parent's 0.35s iframe widening. `sidebar-open` is toggled on <body> by
+   chatbot.js, not on .chatbot, so the sidebar (a sibling) can key off it too. */
 body.sidebar-open .chatbot {
     border-radius: 0 15px 15px 0;
 }
@@ -1208,6 +1214,15 @@ body.show-chatbot .chatbot .resize-handle {
    --------------------------------------------------------------------- */
 :root {
     --chat-w: 420px;
+    /* Px the parent page widens the iframe on the LEFT when history opens.
+       Must match SIDEBAR_REVEAL in chatbot.js and the +/-200 in
+       embed-snippet.html — the snippet is pasted into a CMS and cannot share
+       this constant, so the three have to be changed together. */
+    --sidebar-reveal: 200px;
+    /* .chatbot's left inset. The sidebar is this much wider than the reveal so
+       it covers the inset too — otherwise a transparent strip of exactly this
+       width is left between the sidebar's right edge and the panel's left. */
+    --panel-inset-left: 25px;
 }
 
 
@@ -1247,15 +1262,20 @@ body.show-chatbot .chatbot .resize-handle {
 }
 
 body.mobile .chat-sidebar {
-    /* Full-screen overlay on mobile (not the left-edge "expand" drawer). */
+    /* Full-screen overlay on mobile (not the left-edge "expand" drawer). The
+       parent page never widens the iframe on mobile, so there is no reveal to
+       ride — the overlay needs a slide of its own. */
     width: 100%;
     top: 0;
     bottom: 0;
     border-right: none;
     border-radius: 0;
+    transform: translateX(-100%);
+    transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 body.mobile.sidebar-open .chat-sidebar {
+    transform: translateX(0);
     box-shadow: none;
 }
 

@@ -92,9 +92,13 @@
         if (!isOpen || isMobile()) return;
         const curW = iframe.offsetWidth;
         if (open) {
-            // Widen by the sidebar width (200px) on the LEFT so the chat
-            // panel (right portion) stays put. Works for both a right-anchored
-            // window and one that was freely dragged.
+            // Widen by 200px on the LEFT so the chat panel (right portion)
+            // stays put. Works for both a right-anchored window and one that
+            // was freely dragged.
+            // The 200 must stay in step with --sidebar-reveal in chatbot.css
+            // and SIDEBAR_REVEAL in chatbot.js. This snippet is pasted into a
+            // CMS so it cannot share the constant; tests/test_embed_snippet.py
+            // pins all three together.
             if (iframe.style.left && iframe.style.left !== 'auto') {
                 const curLeft = parseFloat(iframe.style.left) || 0;
                 iframe.style.left = Math.max(0, curLeft - 200) + 'px';
