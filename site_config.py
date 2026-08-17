@@ -29,13 +29,54 @@ ROBOTS_DISALLOWED_PATHS = ["/api", "/app", "/calendar"]
 
 # Regexes (matched against the lowercased URL) for pages that are off-topic for
 # a public-facing knowledge base: careers, donation forms, dated news,
-# internal handbooks, photo galleries, etc.
+# internal handbooks, photo galleries, etc. Applied to linked documents too.
+# Note: file types are NOT excluded here — documents are classified by
+# DOCUMENT_EXTENSIONS below and anything else is dropped automatically.
 EXCLUDED_URL_PATTERNS = [
     r"/careers",
     r"/donate",
     r"news-detail",
     r"/site-map$",
-    r"\.pdf$",
+]
+
+# --- Link following --------------------------------------------------------
+# The sitemap is only a seed list; the crawler also follows <a href> links found
+# on the pages it fetches, so pages the sitemap omits still make it in. Link
+# expansion costs no extra requests — links come out of HTML already fetched.
+
+CRAWL_FOLLOW_LINKS = True   # set False to crawl the sitemap and nothing else
+CRAWL_MAX_DEPTH = 2         # link hops away from a sitemap URL (0 = sitemap only)
+CRAWL_MAX_PAGES = 1500      # ceiling on link-DISCOVERED pages (0 = unlimited).
+                            # Sitemap seeds are never capped here — use --max-pages.
+
+# --- Linked documents ------------------------------------------------------
+# Linked files with these extensions are fetched and their text indexed like any
+# other page (handbooks, fee schedules, forms). Requires requirements-crawl.txt.
+
+CRAWL_DOCUMENTS = True
+DOCUMENT_EXTENSIONS = (".pdf", ".docx")
+DOCUMENT_MAX_BYTES = 20 * 1024 * 1024   # skip anything larger
+
+# --- Images ----------------------------------------------------------------
+# Images are indexed as TEXT records built from alt text, captions, the nearest
+# heading and the filename — the embedding model is text-only, so an image with
+# no descriptive text anywhere is unindexable and is skipped. The image URL is
+# stored in chunk metadata AND in the chunk body so the assistant can cite it.
+
+INDEX_IMAGES = True
+IMAGE_MIN_ALT_CHARS = 15     # minimum descriptive text before an image is indexed
+IMAGE_MAX_PER_PAGE = 25      # cap per page; keeps embedding cost predictable
+
+# Regexes (matched against the lowercased image URL) for decorative assets that
+# carry no information: site chrome, icons, tracking pixels, layout spacers.
+EXCLUDED_IMAGE_PATTERNS = [
+    r"logo",
+    r"favicon",
+    r"/icons?/",
+    r"spacer",
+    r"pixel",
+    r"placeholder",
+    r"\.svg(\?|$)",
 ]
 
 # User-Agent header sent by the crawler.

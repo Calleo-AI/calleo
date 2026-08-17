@@ -5,6 +5,16 @@ Uses the same deterministic extraction + chunking pipeline as create_db.py.
 Crawl-first semantics: existing chunks for a URL are only deleted after a
 successful re-crawl, so a fetch failure never loses data.
 
+Two things to know:
+  * Refreshing a URL is source-atomic — every chunk stored under that source is
+    replaced, which for a page includes its image chunks. build_chunks reads
+    site_config.INDEX_IMAGES, so a refresh keeps whatever the last build did;
+    flip that setting and the next refresh strips images from every page it
+    touches.
+  * A document URL (.pdf/.docx) refreshes exactly like a page — pipeline routes
+    it by extension. But this script never *discovers* anything: new pages and
+    newly linked documents only arrive via create_db.py's link crawl.
+
 Usage:
     python update_db.py                      # refresh every URL in the collection
     python update_db.py URL [URL ...]        # refresh only the given URL(s)

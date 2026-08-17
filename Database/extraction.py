@@ -86,14 +86,22 @@ _CHROME_SELECTORS = (
 )
 
 
-def _strip_chrome(html):
-    """Remove site-wide menus/nav before trafilatura — on content-less pages
-    (photo galleries, landing shells) trafilatura otherwise extracts the
-    mega-menu link tree and presents nav junk as page content."""
-    soup = BeautifulSoup(html, "lxml")
+def chrome_free_soup(html):
+    """Soup with site-wide menus/nav/footers removed.
+
+    Used before trafilatura — on content-less pages (photo galleries, landing
+    shells) it otherwise extracts the mega-menu link tree and presents nav junk
+    as page content — and by images.py, which gets the same header-logo and
+    carousel-sprite removal for free.
+    """
+    soup = BeautifulSoup(html or "", "lxml")
     for junk in soup.select(_CHROME_SELECTORS):
         junk.decompose()
-    return str(soup)
+    return soup
+
+
+def _strip_chrome(html):
+    return str(chrome_free_soup(html))
 
 
 def trafilatura_extract(html, url):

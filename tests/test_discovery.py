@@ -11,7 +11,18 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "Database"))
 
 import discovery
-from discovery import SITE_ROOT, parse_sitemap, normalize_url, is_excluded, filter_urls
+from discovery import (
+    SITE_ROOT,
+    classify_url,
+    classify_urls,
+    document_type,
+    filter_documents,
+    filter_urls,
+    is_document,
+    is_excluded,
+    normalize_url,
+    parse_sitemap,
+)
 
 SITEMAP_XML = f"""<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
@@ -59,10 +70,9 @@ def test_excluded_query_strings_and_news():
     assert is_excluded(f"{SITE_ROOT}/news-detail?pk=2")
 
 
-def test_excluded_offsite_and_files():
+def test_excluded_offsite():
     assert is_excluded("https://alumni.some-other-host.org")
     assert is_excluded("https://example.myschoolapp.com/app")
-    assert is_excluded(f"{SITE_ROOT}/uploads/handbook.pdf")
 
 
 def test_robots_disallowed_paths_do_not_overmatch():
@@ -99,3 +109,62 @@ def test_filter_urls_normalizes_and_dedupes():
         f"{SITE_ROOT}/careers",
     ]
     assert filter_urls(urls) == [f"{SITE_ROOT}/about/history"]
+
+
+# --- Document classification ------------------------------------------------
+# Linked PDFs/DOCX used to be dropped by an r"\.pdf$" entry in
+# EXCLUDED_URL_PATTERNS. They are now routed by extension instead, so the tests
+# below pin down the routing AND both ways a deployer can still opt out.
+
+def test_document_type_and_is_document():
+    assert document_type(f"{SITE_ROOT}/uploads/handbook.pdf") == "pdf"
+    assert document_type(f"{SITE_ROOT}/uploads/FORM.DOCX") == "docx"
+    assert document_type(f"{SITE_ROOT}/about") == ""
+    assert is_document(f"{SITE_ROOT}/uploads/handbook.pdf")
+    assert not is_document(f"{SITE_ROOT}/about")
+
+
+def test_pdf_is_classified_as_document():
+    assert classify_url(f"{SITE_ROOT}/uploads/handbook.pdf") == "document"
+    assert classify_url(f"{SITE_ROOT}/about/history") == "page"
+
+
+def test_documents_off_makes_pdf_unindexable():
+    assert classify_url(f"{SITE_ROOT}/uploads/handbook.pdf", allow_documents=False) == ""
+    # ...while ordinary pages are unaffected.
+    assert classify_url(f"{SITE_ROOT}/about", allow_documents=False) == "page"
+
+
+def test_deployer_can_still_exclude_pdfs(monkeypatch):
+    # The compatibility guarantee: putting r"\.pdf$" back into
+    # EXCLUDED_URL_PATTERNS is a hard ban that beats CRAWL_DOCUMENTS.
+    monkeypatch.setattr(discovery, "_EXCLUDED_RES", [re.compile(r"\.pdf$")])
+    assert classify_url(f"{SITE_ROOT}/uploads/handbook.pdf") == ""
+    assert classify_url(f"{SITE_ROOT}/about") == "page"
+
+
+def test_classify_url_still_rejects_offsite_and_robots_paths():
+    assert classify_url("https://alumni.some-other-host.org/report.pdf") == ""
+    assert classify_url(f"{SITE_ROOT}/app/handbook.pdf") == ""
+    assert classify_url(f"{SITE_ROOT}/careers/posting.pdf") == ""
+
+
+def test_classify_urls_normalizes_dedupes_and_splits_kinds():
+    pairs = classify_urls([
+        f"{SITE_ROOT}/page/about/history",
+        f"{SITE_ROOT}/about/history/",
+        f"{SITE_ROOT}/uploads/handbook.pdf",
+        f"{SITE_ROOT}/careers",
+    ])
+    assert pairs == [
+        (f"{SITE_ROOT}/about/history", "page"),
+        (f"{SITE_ROOT}/uploads/handbook.pdf", "document"),
+    ]
+
+
+def test_filter_documents_keeps_only_documents():
+    assert filter_documents([
+        f"{SITE_ROOT}/about",
+        f"{SITE_ROOT}/uploads/handbook.pdf",
+        f"{SITE_ROOT}/uploads/handbook.pdf",
+    ]) == [f"{SITE_ROOT}/uploads/handbook.pdf"]

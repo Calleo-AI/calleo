@@ -7,3 +7,7 @@ beautifulsoup4
 lxml
 httpx
 markdownify
+# Linked-document text extraction (PDF/DOCX). Pure Python, no system libraries —
+# the serving VM installs requirements.txt only and never needs these.
+pypdf
+python-docx

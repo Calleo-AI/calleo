@@ -7,7 +7,17 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "Database"))
 os.environ.setdefault("GEMINI_API_KEY", "test-key")
 os.environ.setdefault("CHROMA_DB_PATH", os.path.join(os.path.dirname(__file__), "_tmp_chroma"))
 
-from create_db import validate, swap_into_live, KEY_PAGE_CHECKS, MIN_TOTAL_CHUNKS
+from create_db import (
+    KEY_PAGE_CHECKS,
+    MAX_IMAGE_CHUNK_RATIO,
+    MIN_TOTAL_CHUNKS,
+    chunk_mix,
+    content_chunks,
+    embed_minutes,
+    swap_into_live,
+    validate,
+    write_report,
+)
 
 
 class FakeCollection:
@@ -107,6 +117,112 @@ def test_validate_subset_mode_skips_global_checks():
     url = "https://www.example-site.org/p1"
     errors = validate([_stat(url)], _chunks_for(url), subset=True)
     assert errors == []
+
+
+# --- The new chunk kinds must not dilute the quality gates -------------------
+
+def _image_chunks_for(url, n=5):
+    return [{"id": f"{url}_image_{j}",
+             "text": f"Document: T\nSource: {url}\n\nImage on the page: a photo {j}",
+             "metadata": {"source": url, "title": "T", "extractor": "image",
+                          "kind": "image", "image_url": f"{url}/img{j}.jpg"}}
+            for j in range(n)]
+
+
+def _doc_stat(url, status="ok", chunks=5):
+    return {"url": url, "status": status, "kind": "document", "strategy": "pdf",
+            "chars": 1000, "chunks": chunks, "error": "", "images": 0}
+
+
+def test_content_chunks_excludes_images_and_documents():
+    url = "https://www.example-site.org/p1"
+    mixed = (_chunks_for(url, n=2)
+             + _image_chunks_for(url, n=3)
+             + [{"id": "d_0", "text": "x", "metadata": {"source": "d", "kind": "document"}}])
+    assert len(content_chunks(mixed)) == 2
+    assert chunk_mix(mixed) == {"page": 2, "document": 1, "image": 3}
+
+
+def test_image_chunks_do_not_satisfy_the_minimum_chunk_floor():
+    # The failure this guards against: text extraction collapses, hundreds of
+    # image chunks pad the total, and the 200-chunk floor waves it through.
+    url = "https://www.example-site.org/p1"
+    stats = [_stat(url)]
+    chunks = _chunks_for(url, n=2) + _image_chunks_for(url, n=MIN_TOTAL_CHUNKS + 50)
+    assert len(chunks) > MIN_TOTAL_CHUNKS
+    errors = validate(stats, chunks)
+    assert any("page chunks" in e for e in errors)
+
+
+def test_image_alt_text_cannot_satisfy_a_key_page_check():
+    stats, chunks = _passing_inputs()
+    url, needle = next(iter(KEY_PAGE_CHECKS.items()))
+    chunks = [c for c in chunks if c["metadata"]["source"] != url]
+    chunks.extend(_chunks_for(url, needle="unrelated"))
+    # An image on the key page mentioning the needle must not count as content.
+    image = _image_chunks_for(url, n=1)[0]
+    image["text"] = f"Document: T\nSource: {url}\n\nImage: a photo of the {needle}"
+    chunks.append(image)
+    errors = validate(stats, chunks)
+    assert any(needle in e.lower() for e in errors)
+
+
+def test_image_heavy_build_fails_the_ratio_gate():
+    stats, chunks = _passing_inputs()
+    chunks.extend(_image_chunks_for("https://www.example-site.org/gallery",
+                                    n=len(chunks) * 2))
+    errors = validate(stats, chunks)
+    assert any("Image chunks are" in e for e in errors)
+
+
+def test_a_modest_image_share_passes():
+    stats, chunks = _passing_inputs()
+    allowed = int(len(chunks) * MAX_IMAGE_CHUNK_RATIO / 2)
+    chunks.extend(_image_chunks_for("https://www.example-site.org/gallery", n=allowed))
+    assert validate(stats, chunks) == []
+
+
+def test_failed_documents_do_not_sink_the_page_success_rate():
+    stats, chunks = _passing_inputs()
+    stats.extend(_doc_stat(f"https://www.example-site.org/d{i}.pdf", status="extract_failed")
+                 for i in range(40))
+    assert validate(stats, chunks) == []
+
+
+def test_oversized_and_unsupported_pages_are_not_counted_as_crawl_failures():
+    stats, chunks = _passing_inputs()
+    for i in range(30):
+        stats.append(_stat(f"https://www.example-site.org/big{i}", status="too_large"))
+        stats.append(_stat(f"https://www.example-site.org/vid{i}", status="unsupported_type"))
+    assert validate(stats, chunks) == []
+
+
+def test_embed_minutes_matches_the_batch_and_sleep_schedule():
+    assert embed_minutes(0) == 0
+    assert embed_minutes(20) == 0        # a single batch sleeps zero times
+    assert embed_minutes(100) == 0.8     # 5 batches -> 4 sleeps of 12 s
+
+
+def test_report_lists_kinds_and_the_embedding_estimate(tmp_path):
+    url = "https://www.example-site.org/p1"
+    doc = "https://www.example-site.org/uploads/handbook.pdf"
+    stats = [_stat(url), _doc_stat(doc)]
+    stats[0]["images"] = 3
+    chunks = (_chunks_for(url) + _image_chunks_for(url, n=3)
+              + [{"id": f"{doc}_chunk_0", "text": "x",
+                  "metadata": {"source": doc, "kind": "document"}}])
+    path = tmp_path / "report.txt"
+    text = write_report(stats, chunks, [], path=path,
+                        frontier_stats={"max_depth": 2, "depth_reached": 1,
+                                        "seeds": 1, "link_pages": 4, "documents": 1,
+                                        "skipped_depth": 0, "skipped_budget": 0,
+                                        "skipped_policy": 2})
+    assert "Documents: 1" in text
+    assert "Link crawl: depth<=2" in text
+    assert "(page 5 / document 1 / image 3)" in text
+    assert "Estimated embedding time:" in text
+    assert "document" in text.lower()
+    assert path.read_text(encoding="utf-8") == text
 
 
 def test_swap_preserves_manual_sources_and_replaces_crawled():
