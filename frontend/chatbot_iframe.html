@@ -116,6 +116,13 @@
         <button class="chat-sidebar-clear" type="button">Clear all</button>
     </aside>
 
+    <!-- Dimming backdrop behind the mobile history drawer. Mobile-only and
+         inert on desktop (see chatbot.css). It exists because .chatbot is a
+         stacking context at z-index 9999, so the drawer can only be made
+         visible on mobile by painting the WHOLE panel over — which buries the
+         history button that opened it. Tapping the scrim is the way back out. -->
+    <div class="chat-scrim" hidden></div>
+
     <script src="site_config.js"></script>
     <script src="chat_history_store.js"></script>
     <script src="chatbot.js"></script>
