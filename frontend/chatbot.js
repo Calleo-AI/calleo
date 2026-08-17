@@ -146,33 +146,42 @@ const renderSidebar = () => {
     });
 };
 
+// Px the parent page widens the iframe on the LEFT when the sidebar opens.
+// Must match --sidebar-reveal in chatbot.css and the +/-200 in
+// embed-snippet.html (which is pasted into a CMS and can't share the constant).
+const SIDEBAR_REVEAL = 200;
+
 // While true, syncChatWidth() holds --chat-w at its current value so the chat
 // panel (and everything inside it) keeps a constant size while the sidebar
-// slides open or closed and the parent page is mid-resizing the iframe.
+// opens or closes and the parent page is mid-resizing the iframe. Without this
+// a recompute mid-transition would read a half-widened window.innerWidth and
+// briefly shrink the panel.
 let sidebarAnimating = false;
 let sidebarAnimTimer = null;
 
 const setSidebarOpen = (open) => {
     sidebarOpen = open;
     if (!chatbotEl || !sidebar) return;
-    // Ask the parent page to widen the iframe by the sidebar width on the LEFT
-    // so the sidebar has space to slide into. The chat panel itself never
+    // Ask the parent page to widen the iframe by SIDEBAR_REVEAL on the LEFT so
+    // the sidebar has space to be revealed into. The chat panel itself never
     // moves or resizes: it's pinned to the iframe's right edge with a fixed
-    // width (--chat-w), and --chat-w is frozen for the duration of the slide so
-    // the panel can't reflow while the iframe is mid-transition. The sidebar
-    // just slides out into the newly-revealed space, like a card from behind.
+    // width (--chat-w) that is the same number open or closed, and --chat-w is
+    // frozen for the duration so nothing recomputes mid-transition. The sidebar
+    // rides the iframe's moving left edge and is wiped into view from behind
+    // the panel, like a card emerging from behind it.
     // Sent BEFORE toggling the class so the parent begins its 0.35s iframe
-    // resize in the same frame the sidebar starts sliding — desyncing the two
-    // by even one frame shows up as visible jitter at the panel boundary.
+    // resize in the same frame the panel's corners start flattening — desyncing
+    // the two by even one frame shows up as visible jitter at the boundary.
     window.parent.postMessage({ type: "sidebar-toggle", open }, "*");
     if (open) {
         sidebar.hidden = false;
         void sidebar.offsetHeight;
-        // Toggle on <body>, NOT .chatbot: the sidebar is a sibling of the
-        // panel and .chatbot's transform would clip a fixed child. The
-        // `sidebar-open` class is what drives the slide transform.
-        // Deferred to the next frame so the sidebar's 0.35s slide starts in
-        // lockstep with the parent's iframe resize (same duration/easing).
+        // Toggle on <body>, NOT .chatbot: the sidebar is a sibling of the panel
+        // and .chatbot's transform would clip a fixed child. On desktop the
+        // class only flattens the panel's left corners; on mobile — where the
+        // parent never widens the iframe — it also drives the overlay's slide.
+        // Deferred to the next frame so that slide starts in lockstep with the
+        // parent's iframe resize (same duration/easing).
         requestAnimationFrame(() => {
             if (sidebarOpen) document.body.classList.add("sidebar-open");
         });
@@ -192,24 +201,18 @@ const setSidebarOpen = (open) => {
 
 /* Keep the --chat-w CSS variable in sync with the chat panel's intended width.
    The panel is pinned to the iframe's right edge, so its width is the iframe
-   viewport minus the left/right insets (25px + 5px), and minus the sidebar
-   width while the sidebar is open (the parent widens the iframe by exactly
-   that much on the left). The result is constant across open/close, so opening
-   the sidebar never changes the panel size. While a sidebar animation is in
-   flight we skip updates entirely to keep the panel rock-steady. */
+   viewport minus its own 25px + 5px insets — and, when the sidebar is open,
+   minus the SIDEBAR_REVEAL px the parent added on the left purely for the
+   sidebar. Both branches subtract the same insets, so the result is the SAME
+   number open or closed: the panel never resizes or reflows when history is
+   toggled, and its left edge lands exactly on the sidebar's right edge (the
+   sidebar is SIDEBAR_REVEAL + 25px wide, so it covers the reveal and the inset
+   between them). While a sidebar animation is in flight we skip updates
+   entirely — window.innerWidth is mid-transition and would read short. */
 const syncChatWidth = () => {
     if (!chatbotEl) return;
     if (sidebarAnimating) return;
-    // When the sidebar is open it fills the left inset, so only the right
-    // inset (5px) is subtracted alongside the sidebar width — this keeps the
-    // panel flush against the sidebar with no gap. When closed, the full
-    // 30px (25px left + 5px right) inset applies so the panel breathes.
-    let panelW;
-    if (sidebarOpen && sidebar) {
-        panelW = window.innerWidth - 5 - sidebar.offsetWidth;
-    } else {
-        panelW = window.innerWidth - 30; // 25px left + 5px right insets
-    }
+    let panelW = window.innerWidth - 30 - (sidebarOpen ? SIDEBAR_REVEAL : 0);
     // Clamp to a sane minimum so an over-narrow window can't collapse content.
     if (panelW < 280) panelW = 280;
     chatbotEl.style.setProperty("--chat-w", panelW + "px");
