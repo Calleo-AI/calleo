@@ -47,6 +47,7 @@ const sidebarConfirm       = document.getElementById("chat-sidebar-confirm");
 const sidebarConfirmYes    = sidebarConfirm?.querySelector(".chat-sidebar-confirm-yes");
 const sidebarConfirmCancel = sidebarConfirm?.querySelector(".chat-sidebar-confirm-cancel");
 const chatbotEl   = document.querySelector(".chatbot");
+const scrim       = document.querySelector(".chat-scrim");
 
 let activeChatId = null;          // id of the chat currently shown
 let sidebarOpen  = false;         // UI state
@@ -175,11 +176,15 @@ const setSidebarOpen = (open) => {
     window.parent.postMessage({ type: "sidebar-toggle", open }, "*");
     if (open) {
         sidebar.hidden = false;
+        // The scrim is display:none while closed so it can never swallow a tap
+        // meant for the panel — on desktop it stays hidden throughout.
+        if (scrim) scrim.hidden = false;
         void sidebar.offsetHeight;
         // Toggle on <body>, NOT .chatbot: the sidebar is a sibling of the panel
         // and .chatbot's transform would clip a fixed child. On desktop the
         // class only flattens the panel's left corners; on mobile — where the
-        // parent never widens the iframe — it also drives the overlay's slide.
+        // parent never widens the iframe — it also drives the drawer's slide
+        // and fades the scrim in.
         // Deferred to the next frame so that slide starts in lockstep with the
         // parent's iframe resize (same duration/easing).
         requestAnimationFrame(() => {
@@ -187,7 +192,11 @@ const setSidebarOpen = (open) => {
         });
     } else {
         document.body.classList.remove("sidebar-open");
-        setTimeout(() => { if (!sidebarOpen) sidebar.hidden = true; }, 370);
+        setTimeout(() => {
+            if (sidebarOpen) return;
+            sidebar.hidden = true;
+            if (scrim) scrim.hidden = true;
+        }, 370);
     }
 
     sidebarAnimating = true;
@@ -625,6 +634,13 @@ if (historyBtn) {
     historyBtn.addEventListener("click", () => setSidebarOpen(!sidebarOpen));
 }
 
+// The drawer covers the .history-btn that opened it on mobile, so the scrim is
+// the only way back out. It is display:none and pointer-events:none unless the
+// drawer is open on mobile, so this never fires on desktop.
+if (scrim) {
+    scrim.addEventListener("click", () => setSidebarOpen(false));
+}
+
 if (sidebarClear) {
     sidebarClear.addEventListener("click", () => {
         if (sidebarConfirm) sidebarConfirm.hidden = false;
@@ -666,6 +682,10 @@ if (sidebarList) {
         }
 
         loadChat(chatId);
+        // On mobile the drawer covers the chat, so picking a conversation would
+        // otherwise load it out of sight with no feedback. On desktop the rail
+        // is beside the panel and stays put.
+        if (isMobileMode) setSidebarOpen(false);
     });
 }
 
@@ -673,9 +693,20 @@ if (sidebarList) {
 let isMobileMode = false;
 window.addEventListener("message", (e) => {
     if (e.data && e.data.type === "set-mobile") {
+        const changed = e.data.mobile !== isMobileMode;
         isMobileMode = e.data.mobile;
         if (chatbotEl) chatbotEl.classList.toggle("mobile", isMobileMode);
         document.body.classList.toggle("mobile", isMobileMode);
+        // The desktop and mobile presentations of the history bar are different
+        // objects (a rail the parent makes room for vs. a modal drawer it does
+        // not). Carrying an open state across the flip strands it: the parent
+        // resets its own isSidebarOpen on resize without telling us, so the bar
+        // would render with no room for it and the next tap on .history-btn
+        // would CLOSE something the user never saw open. Close it and re-measure.
+        if (changed) {
+            if (sidebarOpen) setSidebarOpen(false);
+            syncChatWidth();
+        }
     }
 });
 

@@ -17,6 +17,8 @@ SOUP = BeautifulSoup(SNIPPET_HTML, "html.parser")
 
 WIDGET_CSS = (FRONTEND / "chatbot.css").read_text(encoding="utf-8")
 WIDGET_JS = (FRONTEND / "chatbot.js").read_text(encoding="utf-8")
+IFRAME_HTML = (FRONTEND / "chatbot_iframe.html").read_text(encoding="utf-8")
+IFRAME_SOUP = BeautifulSoup(IFRAME_HTML, "html.parser")
 
 
 def test_widget_iframe_present():
@@ -108,6 +110,74 @@ def test_panel_width_is_identical_open_and_closed():
     assert (
         "window.innerWidth - 30 - (sidebarOpen ? SIDEBAR_REVEAL : 0)" in WIDGET_JS
     )
+
+
+# --------------------------------------------------------------------------
+# Mobile history drawer
+#
+# .chatbot is a stacking context (z-index 9999 + a transform), so its children
+# cannot be lifted individually. The history bar is therefore either under the
+# WHOLE panel — where it was invisible and untappable, the dead-button bug — or
+# over it, where it buries the .history-btn that opened it. The scrim is what
+# keeps the second option from being a trap, so visibility and dismissal have
+# to stay wired together.
+# --------------------------------------------------------------------------
+
+PANEL_Z = 9999
+
+
+def test_scrim_element_exists_in_the_iframe_document():
+    scrim = IFRAME_SOUP.find("div", class_="chat-scrim")
+    assert scrim is not None, "the mobile drawer has no dismiss target without it"
+    # Must be a SIBLING of .chatbot, not a descendant — .chatbot's transform
+    # makes it the containing block for fixed children, which would trap it.
+    assert scrim.find_parent(class_="chatbot") is None
+
+
+def test_mobile_drawer_is_not_full_width():
+    # A full-bleed sheet leaves nothing to tap to get out.
+    mobile_rule = WIDGET_CSS.split("body.mobile .chat-sidebar {", 1)[1].split("}", 1)[0]
+    assert "width: 82%;" in mobile_rule
+    assert "max-width: 320px;" in mobile_rule
+
+
+def test_mobile_drawer_and_scrim_outrank_the_panel():
+    mobile_rule = WIDGET_CSS.split("body.mobile .chat-sidebar {", 1)[1].split("}", 1)[0]
+    drawer_z = int(re.search(r"z-index:\s*(\d+)", mobile_rule).group(1))
+    scrim_rule = WIDGET_CSS.split(".chat-scrim {", 1)[1].split("}", 1)[0]
+    scrim_z = int(re.search(r"z-index:\s*(\d+)", scrim_rule).group(1))
+    assert drawer_z > scrim_z > PANEL_Z, (
+        f"drawer {drawer_z} / scrim {scrim_z} must both sit above .chatbot's {PANEL_Z}, "
+        "with the scrim between them"
+    )
+
+
+def test_desktop_sidebar_stays_behind_the_panel():
+    # The desktop reveal depends on the panel painting over the sidebar's right
+    # end; lifting it globally would break that, so the raise must be mobile-only.
+    sidebar_rule = WIDGET_CSS.split(".chat-sidebar {", 1)[1].split("}", 1)[0]
+    assert f"z-index: {PANEL_Z - 1};" in sidebar_rule
+
+
+def test_scrim_is_inert_unless_the_mobile_drawer_is_open():
+    scrim_rule = WIDGET_CSS.split(".chat-scrim {", 1)[1].split("}", 1)[0]
+    assert "pointer-events: none;" in scrim_rule
+    assert "opacity: 0;" in scrim_rule
+    # Activated only under body.mobile.sidebar-open — never on desktop.
+    active = WIDGET_CSS.split("body.mobile.sidebar-open .chat-scrim {", 1)[1]
+    assert "pointer-events: auto;" in active.split("}", 1)[0]
+
+
+def test_scrim_click_closes_the_drawer():
+    assert 'scrim.addEventListener("click", () => setSidebarOpen(false));' in WIDGET_JS
+
+
+def test_mode_flip_closes_the_drawer():
+    # Otherwise an open desktop rail survives into mobile as a phantom, and the
+    # next tap on .history-btn closes something the user never saw open.
+    handler = WIDGET_JS.split('e.data.type === "set-mobile"', 1)[1].split("});", 1)[0]
+    assert "if (sidebarOpen) setSidebarOpen(false);" in handler
+    assert "syncChatWidth();" in handler
 
 
 def test_desktop_sidebar_has_no_slide_of_its_own():
