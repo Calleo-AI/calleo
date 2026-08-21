@@ -20,7 +20,7 @@ from site_config import (
 load_dotenv()
 
 # Shared ChromaDB PersistentClient — one per process. Creating it per-call
-# exhausted memory and triggered 502s on memory-constrained hosts. The Gemini
+# exhausted memory and triggered 502s on memory-constrained hosts. The
 # embedding function is likewise a process-wide singleton, owned by llm_client.
 _chroma_path = os.environ.get(
     "CHROMA_DB_PATH",
@@ -193,7 +193,7 @@ def main():
     all_docs = db.get(limit=2)
     print(f"Can retrieve documents: {len(all_docs['documents'])} docs found")
     
-    print("\nGemini Q&A Console (type 'exit' to quit)\n")
+    print("\nQ&A Console (type 'exit' to quit)\n")
 
     while True:
         query = input("Ask a question: ").strip()

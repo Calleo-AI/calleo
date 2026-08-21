@@ -28,7 +28,7 @@ from pipeline import build_chunks, crawl_pages, setup_windows_event_loop
 
 DEFAULT_COLLECTION = "full_database"
 EMBED_BATCH = 20
-EMBED_SLEEP = 12  # seconds between batches: Gemini embedding quota is 100 req/min
+EMBED_SLEEP = 12  # seconds between batches: stays under the provider's embedding rate limit
 
 
 def get_stored_urls(collection):

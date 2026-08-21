@@ -24,7 +24,7 @@ TEXT_FILES = [
 
 
 def get_chroma_db(name):
-    """Get or create a ChromaDB collection with Google embeddings."""
+    """Get or create a ChromaDB collection with the shared embedding function."""
     chroma_client = chromadb.PersistentClient(path=os.environ.get("CHROMA_DB_PATH"))
     return chroma_client.get_or_create_collection(
         name=name, embedding_function=llm_client.get_embedding_function()

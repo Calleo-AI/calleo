@@ -1,7 +1,7 @@
 """Pytest bootstrap.
 
 On Windows, pyarrow's Arrow DLLs must be loaded BEFORE chromadb's rust
-bindings / Google's grpc stack. The reverse order makes the pyarrow import
+bindings / the grpc stack. The reverse order makes the pyarrow import
 (reached transitively via langchain_text_splitters -> pandas) die with
 "Windows fatal exception: access violation" during test collection
 (observed: pyarrow 24.0.0 + chromadb 1.1.0, Python 3.13).

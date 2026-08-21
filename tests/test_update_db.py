@@ -7,7 +7,6 @@ from unittest.mock import patch
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "Database"))
 sys.path.insert(0, os.path.dirname(__file__))
 
-os.environ.setdefault("GEMINI_API_KEY", "test-key")
 os.environ.setdefault("CHROMA_DB_PATH", os.path.join(os.path.dirname(__file__), "_tmp_chroma"))
 
 import update_db

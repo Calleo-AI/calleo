@@ -1,12 +1,11 @@
 flask
 flask-cors
 flask-limiter
-# chromadb pinned: 1.2+ changed GoogleGenerativeAiEmbeddingFunction in a way that
-# breaks against current google-api-core (ClientOptions rejects 'headers').
-# Bump only after verifying: pytest tests/test_llm_client.py in a fresh venv.
+# chromadb pinned: llm_client's OpenRouterEmbeddingFunction is written against
+# 1.1.0's embedding-function API (__call__/name/get_config/build_from_config),
+# which 1.2+ reworks. Bump only after verifying: pytest tests/ in a fresh venv.
 chromadb==1.1.0
 python-dotenv
 gunicorn
 openai
-google-generativeai
 markdown

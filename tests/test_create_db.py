@@ -4,7 +4,6 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "Database"))
 
-os.environ.setdefault("GEMINI_API_KEY", "test-key")
 os.environ.setdefault("CHROMA_DB_PATH", os.path.join(os.path.dirname(__file__), "_tmp_chroma"))
 
 from create_db import validate, swap_into_live, KEY_PAGE_CHECKS, MIN_TOTAL_CHUNKS

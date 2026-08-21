@@ -18,7 +18,7 @@ import llm_client
 load_dotenv()
 
 
-def _chroma_path():
+def chroma_path():
     return os.environ.get(
         "CHROMA_DB_PATH",
         os.path.join(os.path.dirname(os.path.abspath(__file__)), "chroma_db"),
@@ -26,11 +26,11 @@ def _chroma_path():
 
 
 def get_chroma_client():
-    return chromadb.PersistentClient(path=_chroma_path())
+    return chromadb.PersistentClient(path=chroma_path())
 
 
 def get_chroma_db(name):
-    print(f"[ChromaDB] Using database path: {_chroma_path()}")
+    print(f"[ChromaDB] Using database path: {chroma_path()}")
     client = get_chroma_client()
     return client.get_or_create_collection(
         name=name, embedding_function=llm_client.get_embedding_function()

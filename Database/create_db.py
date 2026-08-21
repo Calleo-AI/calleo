@@ -33,7 +33,7 @@ from snapshot_db import create_snapshot
 
 DEFAULT_COLLECTION = "full_database"
 EMBED_BATCH = 20
-EMBED_SLEEP = 12  # seconds between batches: Gemini embedding quota is 100 req/min
+EMBED_SLEEP = 12  # seconds between batches: stays under the provider's embedding rate limit
 
 MIN_PAGE_SUCCESS_RATE = 0.90
 MIN_TOTAL_CHUNKS = 200

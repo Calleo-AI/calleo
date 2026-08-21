@@ -15,7 +15,6 @@ from unittest.mock import MagicMock, patch
 # Set env vars before any import that transitively loads chatbot.py so that
 # the module-level OpenAI client does not raise AuthenticationError.
 os.environ.setdefault("OPENROUTER_API_KEY", "test-key")
-os.environ.setdefault("GEMINI_API_KEY", "test-key")
 os.environ.setdefault("CHROMA_DB_PATH", "/tmp/test-chroma")
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "agent_chatbot"))
@@ -26,7 +25,7 @@ import llm_client  # the single LLM seam; tests patch llm_client.chat
 import site_config  # canned messages: tests assert against the same constants the server uses
 
 # Patch chatbot.get_chroma_db so the four module-level DB calls in server.py
-# return a mock collection instead of hitting real ChromaDB/Gemini APIs.
+# return a mock collection instead of hitting real ChromaDB/provider APIs.
 _mock_collection = MagicMock()
 _mock_collection.count.return_value = 0
 

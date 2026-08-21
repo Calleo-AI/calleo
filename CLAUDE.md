@@ -23,6 +23,10 @@ python Database/create_db.py --dry-run      # crawl + report only, no DB writes
 python Database/create_db.py --max-pages 8  # smoke test on a subset
 python Database/create_db.py --prune        # also delete sources no longer crawled
 
+# One-time migration for a DB built before the OpenRouter embedding migration
+python Database/migrate_embedding_config.py --dry-run
+python Database/migrate_embedding_config.py
+
 # Refresh specific URLs in the DB (or all if none given)
 python Database/update_db.py [URL ...]
 python Database/update_db.py --dry-run
@@ -40,8 +44,7 @@ pytest tests/test_server.py::TestChatEndpoint::test_missing_message_returns_400
 
 | Variable | Purpose |
 |---|---|
-| `GEMINI_API_KEY` | Gemini embeddings (`gemini-embedding-001`) |
-| `OPENROUTER_API_KEY` | Qwen model (`qwen/qwen3.5-397b-a17b`) for chat responses and analysis |
+| `OPENROUTER_API_KEY` | The only provider key: chat (`qwen/qwen3.5-397b-a17b`), analysis, and embeddings (`google/gemini-embedding-001`) |
 | `CHROMA_DB_PATH` | Absolute path to the ChromaDB persistent storage directory |
 | `SENDER_EMAIL` / `SENDER_PASSWORD` / `RECIPIENT_EMAIL` | Email credentials for automated report delivery |
 | `SMTP_SERVER` / `SMTP_PORT` | SMTP config (defaults: `smtp.gmail.com`, `587`) |
@@ -64,7 +67,9 @@ Browser iframe  →  chatbot.js  →  Flask /chat
 
 Calleo is deliberately organization-agnostic: it targets schools, NGOs, and any other site with public content. Keep prompts, comments, and defaults neutral — say "site" or "organization", not "school". The repo ships configured for a fictional **Example Site** so the suite is deterministic.
 
-**All LLM and embedding calls go through `llm_client.py` (repo root).** It is the single provider seam — the only module that imports the OpenAI SDK (pointed at OpenRouter) or constructs the Gemini embedding function, and the only place model ids and OpenRouter `extra_body` reasoning syntax appear. Use `llm_client.chat(messages, role=..., temperature=..., reasoning=...)` for completions and `llm_client.get_embedding_function()` for the shared Gemini embedding function. Roles map to env-overridable models: `chat`→Qwen (`CHAT_MODEL`), `analysis`/`judge`→DeepSeek (`ANALYSIS_MODEL`/`JUDGE_MODEL`), embeddings→`gemini-embedding-001` (`EMBED_MODEL`). `reasoning` is semantic: `None` omits the field, `"off"` disables reasoning, `"high"` sets high effort; `temperature=None` is omitted from the request. Both the chat client and the embedding function are lazy singletons, and the `openai` import is deferred into the client factory so embedding-only consumers (the DB build/refresh pipeline, one-off scripts) never import `openai` or need `OPENROUTER_API_KEY`. `chat()` raises on failure — each caller keeps its own fallback. **This module is the seam to rewrite for a future Vertex AI migration; no call site should need to change.**
+**All LLM and embedding calls go through `llm_client.py` (repo root), and they all go to OpenRouter.** It is the single provider seam — the only module that imports the OpenAI SDK (pointed at OpenRouter), and the only place model ids and OpenRouter `extra_body` reasoning syntax appear. There is no second provider and no second API key: `OPENROUTER_API_KEY` covers chat, analysis, and embeddings. Use `llm_client.chat(messages, role=..., temperature=..., reasoning=...)` for completions and `llm_client.get_embedding_function()` for the shared embedding function. Roles map to env-overridable models: `chat`→Qwen (`CHAT_MODEL`), `analysis`/`judge`→DeepSeek (`ANALYSIS_MODEL`/`JUDGE_MODEL`), embeddings→`google/gemini-embedding-001` (`EMBED_MODEL`). `reasoning` is semantic: `None` omits the field, `"off"` disables reasoning, `"high"` sets high effort; `temperature=None` is omitted from the request. Both the client and the embedding function are lazy singletons, and the `openai` import is deferred into the client factory so importing the module stays cheap for model-id-only consumers. `chat()` raises on failure — each caller keeps its own fallback. **This module is the seam to rewrite for a future provider migration; no call site should need to change.**
+
+`OpenRouterEmbeddingFunction` (in `llm_client.py`) is the ChromaDB-side half of that seam: it posts to OpenRouter's OpenAI-compatible `/embeddings` endpoint in batches of `EMBED_BATCH_SIZE` (transient failures are retried inside the shared SDK client, `MAX_RETRIES`) and declares `default_space() == "cosine"` (the metric the collections were built under). It registers itself with ChromaDB under the name `openrouter`, which is what gets persisted in each collection's config — so a database built before this migration records `google_generative_ai` instead and raises an embedding-function-conflict `ValueError` on open until `python Database/migrate_embedding_config.py` rewrites it (vectors are kept: same underlying model).
 
 **The chatbot iframe is `chatbot_iframe.html`**, which loads `chatbot.js` and `chatbot.css`. It posts to the `/chat` endpoint.
 
@@ -98,13 +103,14 @@ The crawl/extraction pipeline is fully deterministic — no LLM calls:
 - `create_db.py` — one-click full rebuild: snapshot → crawl → build into a staging collection → validation gate (≥90% page success, key-page content checks, min chunk count) → embedding-preserving swap into the live collection → `rebuild_report.txt`. The live collection is never touched if validation fails.
 - `update_db.py` — per-URL refresh on the same pipeline. Crawl-first semantics: existing chunks are only deleted after a successful re-crawl.
 - `snapshot_db.py` — snapshot/rollback (used by `create_db.py` and the server's empty-DB auto-restore).
+- `migrate_embedding_config.py` — one-time, idempotent rewrite of a collection's persisted embedding-function config from the old Google provider to `openrouter`. Edits `chroma.sqlite3` directly; stored vectors are untouched.
 - Other scripts (`clear.py`, `query_chunks.py`, `delete_chunk.py`, `insert_content.py`, etc.) are one-off maintenance utilities.
 
 ## Testing
 
 Tests live in `tests/` and use pytest with `unittest.mock`. The pattern for each test module:
 
-1. Set dummy env vars (`OPENROUTER_API_KEY`, `GEMINI_API_KEY`, `CHROMA_DB_PATH`) before importing the module under test.
+1. Set dummy env vars (`OPENROUTER_API_KEY`, `CHROMA_DB_PATH`) before importing the module under test.
 2. Patch `chatbot.get_chroma_db` so module-level DB initialisation doesn't hit real ChromaDB.
 3. Test pure functions directly; mock LLM calls with `MagicMock` / `AsyncMock`.
 

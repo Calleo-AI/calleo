@@ -16,7 +16,6 @@ import pytest
 # Stub heavy external dependencies before importing snapshot_db.
 # ------------------------------------------------------------------
 
-os.environ.setdefault("GEMINI_API_KEY", "test-key")
 os.environ.setdefault("CHROMA_DB_PATH", "/tmp/test-chroma")
 
 for _mod in ("database", "chromadb", "dotenv"):

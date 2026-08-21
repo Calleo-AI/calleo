@@ -1,19 +1,19 @@
 """
 Unit tests for llm_client.py — the centralized provider seam.
 
-Env vars are stubbed before import so neither the OpenAI (OpenRouter) client
-nor the Gemini embedding function attempts real authentication.
+Env vars are stubbed before import so the OpenAI (OpenRouter) client never
+attempts real authentication.
 
 The provider client is lazy and constructed via llm_client._get_client(); tests
 swap that out for a MagicMock so no network/auth ever happens and we can inspect
-exactly what request kwargs chat() builds.
+exactly what request kwargs chat() and the embedding function build. Everything
+— chat and embeddings alike — goes through that one client.
 """
 import os
 import sys
 from unittest.mock import MagicMock
 
 os.environ.setdefault("OPENROUTER_API_KEY", "test-key")
-os.environ.setdefault("GEMINI_API_KEY", "test-key")
 os.environ.setdefault("CHROMA_DB_PATH", "/tmp/test-chroma")
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
@@ -151,13 +151,135 @@ class TestChatRequest:
 # embeddings
 # ---------------------------------------------------------------------------
 
+class TestEmbedModel:
+    def test_defaults_to_gemini_via_openrouter(self):
+        assert llm_client.embed_model() == "google/gemini-embedding-001"
+
+    def test_env_var_overrides_default(self, monkeypatch):
+        monkeypatch.setenv("EMBED_MODEL", "openai/text-embedding-3-small")
+        assert llm_client.embed_model() == "openai/text-embedding-3-small"
+
+
+def _embedding_response(vectors, start_index=0):
+    """Build a provider embeddings response carrying `vectors`."""
+    response = MagicMock()
+    response.data = [
+        MagicMock(index=start_index + i, embedding=v) for i, v in enumerate(vectors)
+    ]
+    return response
+
+
 class TestEmbeddingFunction:
     def test_returns_same_singleton_each_call(self):
         a = llm_client.get_embedding_function()
         b = llm_client.get_embedding_function()
         assert a is b
 
-    def test_is_a_google_embedding_function(self):
-        import chromadb.utils.embedding_functions as embedding_functions
-        ef = llm_client.get_embedding_function()
-        assert isinstance(ef, embedding_functions.GoogleGenerativeAiEmbeddingFunction)
+    def test_is_a_chroma_embedding_function(self):
+        from chromadb.api.types import EmbeddingFunction
+
+        assert isinstance(llm_client.get_embedding_function(), EmbeddingFunction)
+
+    def test_is_registered_with_chroma_so_configs_deserialize(self):
+        # ChromaDB rebuilds the embedding function from the name it persisted in
+        # the collection config; an unregistered name raises on collection load.
+        from chromadb.utils.embedding_functions import known_embedding_functions
+
+        assert (
+            known_embedding_functions["openrouter"]
+            is llm_client.OpenRouterEmbeddingFunction
+        )
+
+    def test_default_space_is_cosine(self):
+        # The collections were built under cosine; changing it would silently
+        # re-rank every retrieval.
+        assert llm_client.get_embedding_function().default_space() == "cosine"
+
+    def test_uses_the_embed_model(self, monkeypatch):
+        monkeypatch.setenv("EMBED_MODEL", "openai/text-embedding-3-small")
+        ef = llm_client.OpenRouterEmbeddingFunction()
+        assert ef.model_name == "openai/text-embedding-3-small"
+
+    def test_config_round_trips(self):
+        ef = llm_client.OpenRouterEmbeddingFunction(model_name="some/model")
+        rebuilt = llm_client.OpenRouterEmbeddingFunction.build_from_config(
+            ef.get_config()
+        )
+        assert rebuilt.model_name == "some/model"
+
+
+class TestEmbeddingRequests:
+    def test_sends_texts_to_the_embeddings_endpoint(self, fake_client):
+        fake_client.embeddings.create.return_value = _embedding_response(
+            [[1.0, 2.0], [3.0, 4.0]]
+        )
+        ef = llm_client.OpenRouterEmbeddingFunction()
+        result = ef(["one", "two"])
+
+        kwargs = fake_client.embeddings.create.call_args.kwargs
+        assert kwargs["model"] == "google/gemini-embedding-001"
+        assert kwargs["input"] == ["one", "two"]
+        assert [list(v) for v in result] == [[1.0, 2.0], [3.0, 4.0]]
+
+    def test_accepts_a_bare_string(self, fake_client):
+        fake_client.embeddings.create.return_value = _embedding_response([[1.0, 2.0]])
+        result = llm_client.OpenRouterEmbeddingFunction()("just one")
+        assert fake_client.embeddings.create.call_args.kwargs["input"] == ["just one"]
+        assert len(result) == 1
+
+    def test_reorders_results_by_index(self, fake_client):
+        # One vector per input, in input order — whatever order the provider
+        # streamed them back in.
+        response = MagicMock()
+        response.data = [
+            MagicMock(index=1, embedding=[3.0, 4.0]),
+            MagicMock(index=0, embedding=[1.0, 2.0]),
+        ]
+        fake_client.embeddings.create.return_value = response
+        result = llm_client.OpenRouterEmbeddingFunction()(["one", "two"])
+        assert [list(v) for v in result] == [[1.0, 2.0], [3.0, 4.0]]
+
+    def test_splits_large_inputs_into_batches(self, fake_client):
+        texts = [f"doc {i}" for i in range(llm_client.EMBED_BATCH_SIZE + 5)]
+        fake_client.embeddings.create.side_effect = lambda model, input: (
+            _embedding_response([[float(len(t))] for t in input])
+        )
+        result = llm_client.OpenRouterEmbeddingFunction()(texts)
+
+        assert fake_client.embeddings.create.call_count == 2
+        sent = [
+            call.kwargs["input"] for call in fake_client.embeddings.create.call_args_list
+        ]
+        assert sent[0] == texts[:llm_client.EMBED_BATCH_SIZE]
+        assert sent[1] == texts[llm_client.EMBED_BATCH_SIZE:]
+        assert len(result) == len(texts)
+
+    def test_propagates_provider_errors(self, fake_client):
+        # Transient failures are retried inside the SDK client (max_retries);
+        # whatever survives that is the caller's problem, as with chat().
+        fake_client.embeddings.create.side_effect = RuntimeError("upstream down")
+        with pytest.raises(RuntimeError):
+            llm_client.OpenRouterEmbeddingFunction()(["one"])
+
+
+class TestProviderClient:
+    def test_configures_openrouter_and_retries(self, monkeypatch):
+        # The one place the provider is wired up: base URL, key, retry policy.
+        constructed = {}
+
+        class FakeOpenAI:
+            def __init__(self, **kwargs):
+                constructed.update(kwargs)
+
+        monkeypatch.setattr(llm_client, "_client", None)
+        monkeypatch.setenv("OPENROUTER_API_KEY", "key-123")
+        fake_module = MagicMock()
+        fake_module.OpenAI = FakeOpenAI
+        monkeypatch.setitem(sys.modules, "openai", fake_module)
+
+        llm_client._get_client()
+        assert constructed == {
+            "base_url": "https://openrouter.ai/api/v1",
+            "api_key": "key-123",
+            "max_retries": llm_client.MAX_RETRIES,
+        }

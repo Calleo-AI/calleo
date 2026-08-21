@@ -15,7 +15,7 @@ from langchain_text_splitters import (
 )
 
 HEADERS_TO_SPLIT_ON = [("#", "h1"), ("##", "h2"), ("###", "h3")]
-WHOLE_PAGE_MAX = 2000   # chars (~500 tokens) — well under gemini-embedding-001's 2048-token cap
+WHOLE_PAGE_MAX = 2000   # chars (~500 tokens) — well under the embedding model's 2048-token cap
 SECTION_MAX = 1600      # a heading-section under this stays one chunk (keeps tables intact)
 MIN_CHUNK = 300         # sections smaller than this merge into a neighbor
 MIN_KEEP_ALNUM = 50     # chunks with less alphanumeric content than this are dropped

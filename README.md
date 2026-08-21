@@ -61,8 +61,9 @@ cp .env.example .env
 
 Then:
 
-1. **Fill in `.env`** — `GEMINI_API_KEY`, `OPENROUTER_API_KEY`, `CHROMA_DB_PATH`
-   (see `.env.example` for every option).
+1. **Fill in `.env`** — `OPENROUTER_API_KEY`, `CHROMA_DB_PATH`
+   (see `.env.example` for every option). OpenRouter is the only provider:
+   chat, analysis, and embeddings all go through it.
 2. **Configure your organization** — edit the config files below.
 3. **Build the knowledge base**: `python Database/create_db.py`
    (try `--dry-run` first to preview the crawl without writing anything).
@@ -150,16 +151,29 @@ pytest tests/                                # run the test suite
 
 ## Environment variables
 
-Everything lives in `.env` (see `.env.example`): `GEMINI_API_KEY` and
-`OPENROUTER_API_KEY` are required; `CHROMA_DB_PATH` should point outside the
-repo; email vars are optional; `CHAT_MODEL` / `ANALYSIS_MODEL` / `JUDGE_MODEL` /
+Everything lives in `.env` (see `.env.example`): `OPENROUTER_API_KEY` is the
+only required key — chat, analysis, and embeddings (`google/gemini-embedding-001`)
+all go through OpenRouter; `CHROMA_DB_PATH` should point outside the repo; email
+vars are optional; `CHAT_MODEL` / `ANALYSIS_MODEL` / `JUDGE_MODEL` /
 `EMBED_MODEL` override the default models per role — every LLM call goes
 through `llm_client.py`, so switching providers is a one-file change.
+
+### Upgrading a database built before the OpenRouter migration
+
+Collections created when embeddings came from the Google API have that provider
+recorded in their ChromaDB config and refuse to open now. Rewrite the recorded
+provider once — the stored vectors come from the same `gemini-embedding-001`
+model and are kept as-is:
+
+```bash
+python Database/migrate_embedding_config.py --dry-run   # preview
+python Database/migrate_embedding_config.py
+```
 
 ## Testing
 
 ```bash
-pytest tests/                                  # 228 tests, no network needed
+pytest tests/                                  # 261 tests, no network needed
 node --test tests/frontend/test_chat_history_store.mjs
 ```
 
