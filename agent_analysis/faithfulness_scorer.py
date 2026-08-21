@@ -52,11 +52,11 @@ Respond ONLY with valid JSON and absolutely nothing else — no markdown, no bac
 {{"faithful": true or false, "score": 0.0 to 1.0 where 1.0 is fully faithful, "suspicious_claims": ["claim 1", "claim 2"] as an empty list if faithful}}"""
 
     try:
-        raw = llm_client.chat(
+        raw, usage = llm_client.chat_with_usage(
             [{"role": "user", "content": judge_prompt}],
             role="judge",
-        ).strip()
-        verdict = json.loads(raw)
+        )
+        verdict = json.loads(raw.strip())
     except Exception as e:
         print(f"[faithfulness_scorer] Failed to score conversation {conversation_id}: {e}")
         return
@@ -69,6 +69,12 @@ Respond ONLY with valid JSON and absolutely nothing else — no markdown, no bac
         "faithful": verdict.get("faithful"),
         "suspicious_claims": verdict.get("suspicious_claims", []),
         "response_snippet": response_text[:200],
+        # The judge bills its own tokens. They are recorded here rather than on
+        # the turn's conversation-log row: this runs on a daemon thread that is
+        # spawned *after* that row is written, so there is nothing left to
+        # update without racing the writer.
+        "prompt_tokens": usage["prompt_tokens"],
+        "completion_tokens": usage["completion_tokens"],
     }
 
     try:

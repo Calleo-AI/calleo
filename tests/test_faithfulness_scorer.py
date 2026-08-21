@@ -8,8 +8,9 @@ hallucinations). When chunks are present, the judge must also be given the
 chatbot's authoritative system-prompt facts so answers drawn from those facts
 (tuition, headmaster, founding year, ...) are not flagged.
 
-llm_client.chat is patched so no real LLM call is made; _LOG_PATH is redirected
-to a tmp file so no real log is written.
+llm_client.chat_with_usage is patched so no real LLM call is made; _LOG_PATH is
+redirected to a tmp file so no real log is written. The judge bills tokens, so it
+goes through chat_with_usage and the fakes must return a (text, usage) pair.
 """
 import os
 import sys
@@ -27,6 +28,7 @@ import faithfulness_scorer
 
 
 _FAITHFUL_JSON = '{"faithful": true, "score": 1.0, "suspicious_claims": []}'
+_USAGE = {"prompt_tokens": 120, "completion_tokens": 30}
 
 
 # ---------------------------------------------------------------------------
@@ -54,7 +56,7 @@ class TestHasRetrievedContent:
 class TestScoringGate:
     def test_greeting_with_no_chunks_is_skipped(self, monkeypatch, tmp_path):
         mock_chat = MagicMock()
-        monkeypatch.setattr(faithfulness_scorer.llm_client, "chat", mock_chat)
+        monkeypatch.setattr(faithfulness_scorer.llm_client, "chat_with_usage", mock_chat)
         log = tmp_path / "flog.jsonl"
         monkeypatch.setattr(faithfulness_scorer, "_LOG_PATH", str(log))
 
@@ -70,7 +72,7 @@ class TestScoringGate:
 
     def test_blank_chunks_are_skipped(self, monkeypatch, tmp_path):
         mock_chat = MagicMock()
-        monkeypatch.setattr(faithfulness_scorer.llm_client, "chat", mock_chat)
+        monkeypatch.setattr(faithfulness_scorer.llm_client, "chat_with_usage", mock_chat)
         log = tmp_path / "flog.jsonl"
         monkeypatch.setattr(faithfulness_scorer, "_LOG_PATH", str(log))
 
@@ -82,8 +84,8 @@ class TestScoringGate:
         assert not log.exists()
 
     def test_real_answer_with_chunks_is_scored_and_logged(self, monkeypatch, tmp_path):
-        mock_chat = MagicMock(return_value=_FAITHFUL_JSON)
-        monkeypatch.setattr(faithfulness_scorer.llm_client, "chat", mock_chat)
+        mock_chat = MagicMock(return_value=(_FAITHFUL_JSON, _USAGE))
+        monkeypatch.setattr(faithfulness_scorer.llm_client, "chat_with_usage", mock_chat)
         log = tmp_path / "flog.jsonl"
         monkeypatch.setattr(faithfulness_scorer, "_LOG_PATH", str(log))
 
@@ -99,6 +101,10 @@ class TestScoringGate:
         record = json.loads(log.read_text(encoding="utf-8").strip())
         assert record["faithful"] is True
         assert record["conversation_id"] == "cid-real"
+        # The judge bills its own tokens; they belong on its record, not on the
+        # turn's conversation-log row (which is already written by this point).
+        assert record["prompt_tokens"] == 120
+        assert record["completion_tokens"] == 30
 
 
 # ---------------------------------------------------------------------------
@@ -111,9 +117,9 @@ class TestTrustedFacts:
 
         def fake_chat(messages, role=None, **kwargs):
             captured["prompt"] = messages[0]["content"]
-            return _FAITHFUL_JSON
+            return _FAITHFUL_JSON, _USAGE
 
-        monkeypatch.setattr(faithfulness_scorer.llm_client, "chat", fake_chat)
+        monkeypatch.setattr(faithfulness_scorer.llm_client, "chat_with_usage", fake_chat)
         monkeypatch.setattr(faithfulness_scorer, "_LOG_PATH", str(tmp_path / "f.jsonl"))
 
         faithfulness_scorer.score_faithfulness_async(

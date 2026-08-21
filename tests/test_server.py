@@ -194,38 +194,80 @@ class TestCheckSpam:
 # contextualize_query
 # ---------------------------------------------------------------------------
 
+_USAGE = {"prompt_tokens": 40, "completion_tokens": 8}
+
+
 class TestContextualizeQuery:
     def test_returns_original_query_when_no_history(self):
-        result = server.contextualize_query([], "What are school hours?")
+        result, usage = server.contextualize_query([], "What are school hours?")
         assert result == "What are school hours?"
+        # No LLM call was made, so nothing may be billed for this branch.
+        assert usage == {"prompt_tokens": 0, "completion_tokens": 0}
 
     def test_calls_llm_and_returns_rephrased_query(self, monkeypatch):
         monkeypatch.setattr(
-            llm_client, "chat", lambda *a, **k: "  Rephrased standalone question  ")
+            llm_client, "chat_with_usage",
+            lambda *a, **k: ("  Rephrased standalone question  ", _USAGE))
         history = [{"role": "user", "content": "Tell me about fees"}]
-        result = server.contextualize_query(history, "What about deadlines?")
+        result, usage = server.contextualize_query(history, "What about deadlines?")
         assert result == "Rephrased standalone question"
+        assert usage == _USAGE
 
     def test_returns_original_query_on_llm_exception(self, monkeypatch):
         def raise_error(*a, **k):
             raise Exception("API error")
-        monkeypatch.setattr(llm_client, "chat", raise_error)
+        monkeypatch.setattr(llm_client, "chat_with_usage", raise_error)
         history = [{"role": "user", "content": "Some context"}]
-        result = server.contextualize_query(history, "Follow-up question?")
+        result, usage = server.contextualize_query(history, "Follow-up question?")
         assert result == "Follow-up question?"
+        # A failed call still bills nothing the caller can attribute.
+        assert usage == {"prompt_tokens": 0, "completion_tokens": 0}
 
     def test_only_last_six_history_messages_used(self, monkeypatch):
         captured = {}
 
         def fake_chat(messages, *a, **k):
             captured["prompt"] = messages[1]["content"]
-            return "standalone"
+            return "standalone", _USAGE
 
-        monkeypatch.setattr(llm_client, "chat", fake_chat)
+        monkeypatch.setattr(llm_client, "chat_with_usage", fake_chat)
         history = [{"role": "user", "content": f"msg {i}"} for i in range(10)]
         server.contextualize_query(history, "latest question")
         assert "msg 0" not in captured["prompt"]
         assert "msg 9" in captured["prompt"]
+
+
+class TestGetBestLink:
+    def test_single_source_short_circuits_without_billing(self, monkeypatch):
+        def fail(*a, **k):
+            raise AssertionError("must not call the LLM for a single source")
+        monkeypatch.setattr(llm_client, "chat_with_usage", fail)
+        link, usage = server.get_best_link("q", "answer", ["https://example.com/a"])
+        assert link == "https://example.com/a"
+        assert usage == {"prompt_tokens": 0, "completion_tokens": 0}
+
+    def test_no_sources_returns_none_without_billing(self):
+        link, usage = server.get_best_link("q", "answer", [])
+        assert link is None
+        assert usage == {"prompt_tokens": 0, "completion_tokens": 0}
+
+    def test_multiple_sources_bills_the_pick(self, monkeypatch):
+        monkeypatch.setattr(
+            llm_client, "chat_with_usage",
+            lambda *a, **k: ("https://example.com/b", _USAGE))
+        link, usage = server.get_best_link(
+            "q", "answer", ["https://example.com/a", "https://example.com/b"])
+        assert link == "https://example.com/b"
+        assert usage == _USAGE
+
+    def test_llm_failure_falls_back_without_billing(self, monkeypatch):
+        def raise_error(*a, **k):
+            raise Exception("API error")
+        monkeypatch.setattr(llm_client, "chat_with_usage", raise_error)
+        link, usage = server.get_best_link(
+            "q", "answer", ["https://example.com/a", "https://example.com/b"])
+        assert link == "https://example.com/a"
+        assert usage == {"prompt_tokens": 0, "completion_tokens": 0}
 
 
 # ---------------------------------------------------------------------------
@@ -277,7 +319,7 @@ class TestChatEndpoint:
             lambda q, db: ("Error retrieving documents.", []),
         )
         llm = MagicMock(side_effect=AssertionError("LLM must not be called on retrieval error"))
-        monkeypatch.setattr(llm_client, "chat", llm)
+        monkeypatch.setattr(llm_client, "chat_with_usage", llm)
         resp = client.post(
             "/chat",
             json={"message": "tell me about the athletics program"},
@@ -299,13 +341,90 @@ class TestChatEndpoint:
 
 
 # ---------------------------------------------------------------------------
+# Token accounting — what each turn logs to the conversation collection
+# ---------------------------------------------------------------------------
+
+def _logged_metadata():
+    """Return the metadata dict from the most recent conversation-log write."""
+    return _mock_collection.add.call_args.kwargs["metadatas"][0]
+
+
+class TestTokenAccounting:
+    def test_turn_sums_every_billed_call(self, client, monkeypatch):
+        """A turn with history and multiple sources bills three LLM calls —
+        query rewrite, answer, link pick — and logs their sum as one row."""
+        monkeypatch.setattr(
+            server, "get_relevant_documents",
+            lambda q, db: ("School passage.", [
+                {"source": "https://example.com/a"},
+                {"source": "https://example.com/b"},
+            ]),
+        )
+        # Faithfulness scoring runs on its own thread and bills separately.
+        monkeypatch.setattr(server, "score_faithfulness_async", lambda *a, **k: None)
+
+        usages = [
+            ("Rewritten question", {"prompt_tokens": 100, "completion_tokens": 10}),
+            ("Test answer.", {"prompt_tokens": 900, "completion_tokens": 60}),
+            ("https://example.com/a", {"prompt_tokens": 50, "completion_tokens": 5}),
+        ]
+        calls = iter(usages)
+        monkeypatch.setattr(llm_client, "chat_with_usage", lambda *a, **k: next(calls))
+
+        _mock_collection.add.reset_mock()
+        resp = client.post("/chat", json={
+            "message": "What about deadlines?",
+            "history": [{"role": "user", "content": "Tell me about fees"}],
+        }, headers={"User-Agent": "TokenSumTest/1.0"})
+
+        assert resp.status_code == 200
+        meta = _logged_metadata()
+        assert meta["prompt_tokens"] == 1050
+        assert meta["completion_tokens"] == 75
+
+    def test_greeting_logs_zero_tokens(self, client):
+        """Greetings short-circuit before any LLM call, so they must log zeros
+        rather than omitting the keys — the dashboard reads every row."""
+        _mock_collection.add.reset_mock()
+        resp = client.post("/chat", json={"message": "hello"},
+                           headers={"User-Agent": "GreetingTokenTest/1.0"})
+
+        assert resp.status_code == 200
+        meta = _logged_metadata()
+        assert meta["prompt_tokens"] == 0
+        assert meta["completion_tokens"] == 0
+
+    def test_single_source_turn_does_not_bill_a_link_pick(self, client, monkeypatch):
+        """One source needs no LLM to choose between, so only the rewrite-free
+        answer call is billed."""
+        monkeypatch.setattr(
+            server, "get_relevant_documents",
+            lambda q, db: ("School passage.", [{"source": "https://example.com/a"}]),
+        )
+        monkeypatch.setattr(server, "score_faithfulness_async", lambda *a, **k: None)
+        monkeypatch.setattr(
+            llm_client, "chat_with_usage",
+            lambda *a, **k: ("Test answer.", {"prompt_tokens": 900, "completion_tokens": 60}))
+
+        _mock_collection.add.reset_mock()
+        resp = client.post("/chat", json={"message": "What are the school hours?"},
+                           headers={"User-Agent": "SingleSourceTokenTest/1.0"})
+
+        assert resp.status_code == 200
+        meta = _logged_metadata()
+        assert meta["prompt_tokens"] == 900
+        assert meta["completion_tokens"] == 60
+
+
+# ---------------------------------------------------------------------------
 # Language parameter forwarding
 # ---------------------------------------------------------------------------
 
 def _setup_non_greeting(monkeypatch):
     """Patch get_relevant_documents and the LLM call for non-greeting flow."""
     monkeypatch.setattr(server, "get_relevant_documents", lambda q, db: ("School passage.", []))
-    monkeypatch.setattr(llm_client, "chat", lambda *a, **k: "Test answer.")
+    monkeypatch.setattr(llm_client, "chat_with_usage",
+                        lambda *a, **k: ("Test answer.", dict(_USAGE)))
 
 
 class TestChatEndpointLanguage:

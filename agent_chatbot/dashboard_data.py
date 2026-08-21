@@ -156,6 +156,8 @@ def _load_from_chroma(collection):
         items.append({
             "timestamp": _parse_timestamp(meta.get("timestamp")),
             "latency_ms": meta.get("latency_ms"),
+            "prompt_tokens": meta.get("prompt_tokens"),
+            "completion_tokens": meta.get("completion_tokens"),
             "query": query,
             "response": response,
         })
@@ -275,6 +277,22 @@ def compute_dashboard(collection, range_param="24h"):
                  if isinstance(it.get("latency_ms"), (int, float)) and it["latency_ms"] > 0]
     avg_latency_ms = round(sum(latencies) / len(latencies), 0) if latencies else 0
 
+    # Tokens billed in the window. Rows logged before token accounting existed
+    # carry no counts at all, so each key is filtered the same way latency is
+    # rather than defaulting to 0 — an old row must not drag the average down.
+    def _token_total(key):
+        return sum(it[key] for it in scoped
+                   if isinstance(it.get(key), (int, float)))
+
+    total_prompt_tokens = _token_total("prompt_tokens")
+    total_completion_tokens = _token_total("completion_tokens")
+    billed_chats = sum(1 for it in scoped
+                       if isinstance(it.get("prompt_tokens"), (int, float))
+                       and it["prompt_tokens"] > 0)
+    avg_tokens_per_chat = round(
+        (total_prompt_tokens + total_completion_tokens) / billed_chats, 0
+    ) if billed_chats else 0
+
     # Faithfulness / answer-quality from the JSONL audit log, scoped to window.
     faith = _load_faithfulness(range_param)
 
@@ -301,6 +319,9 @@ def compute_dashboard(collection, range_param="24h"):
             "error_count": error_count,
             "unique_sessions": unique_sessions,
             "avg_latency_ms": avg_latency_ms,
+            "total_prompt_tokens": total_prompt_tokens,
+            "total_completion_tokens": total_completion_tokens,
+            "avg_tokens_per_chat": avg_tokens_per_chat,
             "mean_faithfulness": faith["mean_score"],
             "unfaithful_rate_pct": faith["unfaithful_rate_pct"],
             "scored_count": faith["scored_count"],

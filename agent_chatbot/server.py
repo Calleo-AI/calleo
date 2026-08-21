@@ -261,9 +261,26 @@ except Exception as e:
     print(f"Error loading full database conversations: {e}")
     full_database_conversations = None
 
+def _no_usage():
+    """A zeroed token count.
+
+    A turn bills several LLM calls (query rewrite, answer, link pick). Helpers
+    that short-circuit or fail without reaching the provider return this, so the
+    caller can sum every branch unconditionally. A fresh dict each time: the
+    caller owns what it is handed, and a shared constant would let one mutation
+    corrupt every later turn.
+    """
+    return {"prompt_tokens": 0, "completion_tokens": 0}
+
+
 def contextualize_query(history, latest_query):
+    """Rewrite a follow-up into a standalone question.
+
+    Returns ``(query, usage)``; ``usage`` is zeroed whenever no LLM call was
+    billed (no history, or the call failed and the raw query is returned).
+    """
     if not history:
-        return latest_query
+        return latest_query, _no_usage()
     
     history_text = ""
     # Use only the last 3 turns to keep context focused and reduce token usage
@@ -284,7 +301,7 @@ def contextualize_query(history, latest_query):
     """
     
     try:
-        return llm_client.chat(
+        text, usage = llm_client.chat_with_usage(
             [
                 {"role": "system", "content": "You are a helpful assistant."},
                 {"role": "user", "content": prompt}
@@ -292,16 +309,22 @@ def contextualize_query(history, latest_query):
             role="chat",
             temperature=0,
             reasoning="off",
-        ).strip()
+        )
+        return text.strip(), usage
     except Exception as e:
         print(f"Error contextualizing query: {e}")
-        return latest_query
+        return latest_query, _no_usage()
 
 def get_best_link(query, response_text, sources):
+    """Pick the source URL most relevant to the answer.
+
+    Returns ``(link, usage)``; ``usage`` is zeroed on every branch that does not
+    reach the LLM (no sources, a single source, or a failed call).
+    """
     if not sources:
-        return None
+        return None, _no_usage()
     if len(sources) == 1:
-        return sources[0]
+        return sources[0], _no_usage()
         
     prompt = f"""Given the user query: "{query}"
 And the following response generated:
@@ -314,7 +337,7 @@ Links:
 Please output ONLY the single best URL from the list above, nothing else."""
     
     try:
-        best_link = llm_client.chat(
+        raw, usage = llm_client.chat_with_usage(
             [
                 {"role": "system", "content": "You are a helpful assistant that selects the best link. Output only the URL itself."},
                 {"role": "user", "content": prompt}
@@ -322,15 +345,16 @@ Please output ONLY the single best URL from the list above, nothing else."""
             role="chat",
             temperature=0,
             reasoning="off",
-        ).strip()
+        )
+        best_link = raw.strip()
         # Verify the returned link is actually in our sources
         for s in sources:
             if s in best_link:
-                return s
-        return sources[0] # Fallback if LLM failed
+                return s, usage
+        return sources[0], usage  # Fallback if LLM returned something unusable
     except Exception as e:
         print(f"Error determining best link: {e}")
-        return sources[0]
+        return sources[0], _no_usage()
 
 
 @app.route('/chat', methods=['POST'])
@@ -344,6 +368,17 @@ def chat_endpoint():
     # (greetings, canned deferrals) so every conversation-log row carries the
     # same metadata keys — old rows without it default to 0 on the dashboard.
     latency_ms = 0
+    # Tokens billed across every LLM call this turn (query rewrite + answer +
+    # link pick), summed so one conversation-log row carries the turn's true
+    # cost. Non-LLM branches (greetings, canned deferrals) log 0, matching how
+    # latency_ms already behaves.
+    prompt_tokens = 0
+    completion_tokens = 0
+
+    def bill(usage):
+        nonlocal prompt_tokens, completion_tokens
+        prompt_tokens += usage["prompt_tokens"]
+        completion_tokens += usage["completion_tokens"]
 
     try:
         # Safety check
@@ -386,7 +421,8 @@ def chat_endpoint():
             # 0. Contextualize Query
             search_query = user_query
             if history:
-                search_query = contextualize_query(history, user_query)
+                search_query, usage = contextualize_query(history, user_query)
+                bill(usage)
                 print(f"[Rewritten Query]: {search_query}")
 
             # 1. Retrieve Context
@@ -416,7 +452,7 @@ def chat_endpoint():
 
                 # 4. Generate Answer with OpenRouter
                 t0 = time.perf_counter()
-                response_text = llm_client.chat(
+                response_text, usage = llm_client.chat_with_usage(
                     [
                         {"role": "system", "content": "You are a helpful assistant."},
                         {"role": "user", "content": prompt}
@@ -424,8 +460,10 @@ def chat_endpoint():
                     role="chat",
                     temperature=0.3,
                     reasoning="off",
-                ).strip()
+                )
                 latency_ms = round((time.perf_counter() - t0) * 1000, 1)
+                response_text = response_text.strip()
+                bill(usage)
 
                 # Check for standard "no information" responses
                 negative_phrases = [
@@ -447,7 +485,8 @@ def chat_endpoint():
                     if metadatas:
                         sources = list(set([m.get('source') for m in metadatas if m and m.get('source')]))
                         if sources:
-                            best_link = get_best_link(user_query, response_text, sources)
+                            best_link, usage = get_best_link(user_query, response_text, sources)
+                            bill(usage)
                             if best_link:
                                 response_text += f"\n\nSource: {best_link}"
                 print(f"[Enrollment Answer]: {response_text}")
@@ -460,7 +499,13 @@ def chat_endpoint():
                 log_entry = f"User: {user_query}\nAI: {response_text}"
                 full_database_conversations.add(
                     documents=[log_entry],
-                    metadatas=[{"role": "interaction", "timestamp": timestamp, "latency_ms": latency_ms}],
+                    metadatas=[{
+                        "role": "interaction",
+                        "timestamp": timestamp,
+                        "latency_ms": latency_ms,
+                        "prompt_tokens": prompt_tokens,
+                        "completion_tokens": completion_tokens,
+                    }],
                     ids=[interaction_id]
                 )
 

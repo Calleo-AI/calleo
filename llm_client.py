@@ -5,8 +5,12 @@ Every model call in this project — chat completions AND embeddings — goes
 through OpenRouter, using the OpenAI SDK pointed at OpenRouter's base URL.
 This is the ONLY module that imports that SDK, and the ONLY place model IDs and
 provider-specific request syntax (e.g. OpenRouter's ``extra_body`` reasoning
-fields) appear. Every other module goes through ``chat()`` and
-``get_embedding_function()``.
+fields) appear. Every other module goes through ``chat()``,
+``chat_with_usage()`` and ``get_embedding_function()``.
+
+``chat()`` returns just the text; ``chat_with_usage()`` also returns a
+provider-neutral token count, so callers that bill a request (the /chat turn
+logger, the faithfulness judge) never have to read the raw response object.
 
 Why it exists: a future provider migration (e.g. to Vertex AI) should be a
 localized rewrite of THIS file only. Call sites build their own prompts, parse
@@ -112,8 +116,29 @@ def _extra_body(reasoning):
     )
 
 
-def chat(messages, *, role="chat", temperature=None, reasoning=None):
-    """Send a chat completion and return the message text ("" if none).
+def _usage_dict(usage):
+    """Normalize a provider usage object into plain ints.
+
+    Missing or non-integer counts become 0 rather than propagating: some
+    providers omit ``usage`` entirely, and the counts land in ChromaDB metadata,
+    which accepts only str/int/float/bool. A non-int here would raise at insert
+    time and lose the whole conversation-log row.
+    """
+    def _int(value):
+        return value if isinstance(value, int) else 0
+
+    return {
+        "prompt_tokens": _int(getattr(usage, "prompt_tokens", 0)),
+        "completion_tokens": _int(getattr(usage, "completion_tokens", 0)),
+    }
+
+
+def chat_with_usage(messages, *, role="chat", temperature=None, reasoning=None):
+    """Send a chat completion and return ``(text, usage)``.
+
+    ``usage`` is a plain dict of ``prompt_tokens`` / ``completion_tokens``, so
+    callers can bill a request without ever seeing the provider's response
+    shape. Everything else matches :func:`chat`.
 
     Provider-agnostic: callers never touch the OpenAI SDK shape. Exceptions are
     propagated so each caller keeps its own tailored fallback behavior.
@@ -131,7 +156,17 @@ def chat(messages, *, role="chat", temperature=None, reasoning=None):
         kwargs["extra_body"] = extra
 
     completion = _get_client().chat.completions.create(**kwargs)
-    return completion.choices[0].message.content or ""
+    text = completion.choices[0].message.content or ""
+    return text, _usage_dict(getattr(completion, "usage", None))
+
+
+def chat(messages, **kwargs):
+    """Send a chat completion and return the message text ("" if none).
+
+    Thin wrapper over :func:`chat_with_usage` for the callers that do not bill
+    the request. Same arguments, same exceptions.
+    """
+    return chat_with_usage(messages, **kwargs)[0]
 
 
 # --- Embeddings ---------------------------------------------------------------

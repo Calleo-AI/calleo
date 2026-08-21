@@ -90,6 +90,73 @@ class TestChatReturn:
 
 
 # ---------------------------------------------------------------------------
+# chat_with_usage() — token accounting
+# ---------------------------------------------------------------------------
+
+def _completion_with_usage(content, prompt_tokens, completion_tokens):
+    mock = _completion(content)
+    mock.usage.prompt_tokens = prompt_tokens
+    mock.usage.completion_tokens = completion_tokens
+    return mock
+
+
+class TestChatWithUsage:
+    def test_returns_text_and_parsed_counts(self, fake_client):
+        fake_client.chat.completions.create.return_value = _completion_with_usage(
+            "Hello there", 120, 34)
+        text, usage = llm_client.chat_with_usage([{"role": "user", "content": "hi"}])
+        assert text == "Hello there"
+        assert usage == {"prompt_tokens": 120, "completion_tokens": 34}
+
+    def test_zeros_when_provider_omits_usage(self, fake_client):
+        completion = _completion("Hello there")
+        completion.usage = None
+        fake_client.chat.completions.create.return_value = completion
+        _, usage = llm_client.chat_with_usage([{"role": "user", "content": "hi"}])
+        assert usage == {"prompt_tokens": 0, "completion_tokens": 0}
+
+    def test_zeros_for_non_integer_counts(self, fake_client):
+        # A bare MagicMock auto-creates .usage.prompt_tokens as another MagicMock.
+        # These counts are written straight into ChromaDB metadata, which accepts
+        # only str/int/float/bool — a non-int here would raise at insert time and
+        # lose the whole conversation-log row.
+        fake_client.chat.completions.create.return_value = _completion("Hello there")
+        _, usage = llm_client.chat_with_usage([{"role": "user", "content": "hi"}])
+        assert usage == {"prompt_tokens": 0, "completion_tokens": 0}
+        assert all(isinstance(v, int) for v in usage.values())
+
+    def test_empty_content_still_reports_usage(self, fake_client):
+        fake_client.chat.completions.create.return_value = _completion_with_usage(
+            None, 80, 0)
+        text, usage = llm_client.chat_with_usage([{"role": "user", "content": "hi"}])
+        assert text == ""
+        assert usage["prompt_tokens"] == 80
+
+    def test_propagates_exceptions(self, fake_client):
+        fake_client.chat.completions.create.side_effect = RuntimeError("upstream down")
+        with pytest.raises(RuntimeError):
+            llm_client.chat_with_usage([{"role": "user", "content": "hi"}])
+
+    def test_chat_is_a_thin_wrapper_returning_only_text(self, fake_client):
+        fake_client.chat.completions.create.return_value = _completion_with_usage(
+            "Hello there", 120, 34)
+        assert llm_client.chat([{"role": "user", "content": "hi"}]) == "Hello there"
+
+    def test_both_entry_points_build_the_same_request(self, fake_client):
+        fake_client.chat.completions.create.return_value = _completion_with_usage(
+            "ok", 1, 1)
+        messages = [{"role": "user", "content": "hi"}]
+        kwargs = dict(role="analysis", temperature=0, reasoning="high")
+
+        llm_client.chat(messages, **kwargs)
+        via_chat = fake_client.chat.completions.create.call_args
+        llm_client.chat_with_usage(messages, **kwargs)
+        via_usage = fake_client.chat.completions.create.call_args
+
+        assert via_chat == via_usage
+
+
+# ---------------------------------------------------------------------------
 # chat() — request construction
 # ---------------------------------------------------------------------------
 

@@ -2816,6 +2816,15 @@
           <div class="kpi-delta" id="kpi-latency-delta">—</div>
         </article>
 
+        <!-- Tokens per chat -->
+        <article class="kpi-card">
+          <div class="kpi-label">Avg tokens / chat</div>
+          <div class="kpi-value-row">
+            <span class="kpi-number num" id="kpi-tokens">&mdash;</span>
+          </div>
+          <div class="kpi-delta" id="kpi-tokens-delta">&mdash;</div>
+        </article>
+
         <!-- Answer quality -->
         <article class="kpi-card">
           <div class="kpi-label">Answer quality</div>
@@ -3531,6 +3540,25 @@
           latencyEl.textContent = ms >= 1000
             ? (ms / 1000).toFixed(2) + 's'
             : (ms > 0 ? Math.round(ms) + 'ms' : '—');
+        }
+
+        // Avg tokens per chat, with the prompt/completion split underneath.
+        // Turns logged before token accounting existed carry no counts and are
+        // excluded server-side, so a fresh deploy shows the placeholder until
+        // the first billed turn lands.
+        const tokensEl = document.getElementById('kpi-tokens');
+        const tokensDelta = document.getElementById('kpi-tokens-delta');
+        const promptTok = Number(kpis.total_prompt_tokens || 0);
+        const completionTok = Number(kpis.total_completion_tokens || 0);
+        if (tokensEl) {
+          const avg = Number(kpis.avg_tokens_per_chat || 0);
+          tokensEl.textContent = avg > 0 ? Math.round(avg).toLocaleString() : '\u2014';
+        }
+        if (tokensDelta) {
+          tokensDelta.textContent = (promptTok + completionTok) > 0
+            ? promptTok.toLocaleString() + ' in · ' + completionTok.toLocaleString() + ' out'
+            : 'Not yet measured';
+          tokensDelta.className = 'kpi-delta';
         }
 
         // Answer quality — faithfulness score as a %, tinted by band.
