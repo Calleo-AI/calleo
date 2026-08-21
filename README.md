@@ -25,6 +25,10 @@ Browser iframe  →  chatbot.js  →  Flask /chat
                                →  faithfulness judge (async) audits answers
 ```
 
+Every model call — chat, analysis, faithfulness judging, and the embeddings
+behind the vector search — goes to OpenRouter through `llm_client.py`. One
+provider, one API key.
+
 **Key modules:**
 
 | Path | Purpose |
@@ -37,7 +41,7 @@ Browser iframe  →  chatbot.js  →  Flask /chat
 | `agent_analysis/faithfulness_scorer.py` | LLM judge that audits answers against retrieved chunks |
 | `Database/create_db.py` | Full knowledge-base rebuild with validation gate |
 | `Database/update_db.py` | Incremental per-URL refresh |
-| `llm_client.py` | Single provider seam for all LLM + embedding calls |
+| `llm_client.py` | Single provider seam — every LLM + embedding call, all via OpenRouter |
 | `frontend/chatbot_iframe.html` | Embeddable iframe shell |
 | `dashboard.html` | Analytics dashboard (deployable as a static site) |
 
@@ -146,8 +150,36 @@ python Database/create_db.py --dry-run       # crawl + report only, no DB writes
 python Database/create_db.py --max-pages 8   # quick smoke test
 python Database/update_db.py <URL>           # refresh specific pages
 python Database/snapshot_db.py --rollback --collection full_database   # restore the last snapshot
+python Database/migrate_embedding_config.py  # one-time upgrade for a pre-OpenRouter DB
 pytest tests/                                # run the test suite
 ```
+
+## Upgrading a database built before the OpenRouter migration
+
+Embeddings used to come from the Google API directly. ChromaDB records the
+embedding provider inside each collection, so a database built back then
+refuses to open now:
+
+```
+ValueError: An embedding function already exists in the collection
+configuration ... new: openrouter vs persisted: google_generative_ai
+```
+
+Rewrite the recorded provider once. The stored vectors come from the same
+`gemini-embedding-001` model and are kept as-is — nothing is re-embedded:
+
+```bash
+python Database/migrate_embedding_config.py --dry-run   # preview
+python Database/migrate_embedding_config.py
+```
+
+The script is idempotent, so a fresh database (or one already migrated) is a
+no-op. Run it before anything else that touches the database: a full
+`python Database/create_db.py` rebuild is not a way around it, since the rebuild
+opens the live collection and hits the same error. Once migrated, everything
+works; a rebuild afterwards is still worth doing eventually, because queries now
+reach the model through OpenRouter rather than Google's `task_type`-annotated
+API.
 
 ## Environment variables
 
@@ -157,18 +189,6 @@ all go through OpenRouter; `CHROMA_DB_PATH` should point outside the repo; email
 vars are optional; `CHAT_MODEL` / `ANALYSIS_MODEL` / `JUDGE_MODEL` /
 `EMBED_MODEL` override the default models per role — every LLM call goes
 through `llm_client.py`, so switching providers is a one-file change.
-
-### Upgrading a database built before the OpenRouter migration
-
-Collections created when embeddings came from the Google API have that provider
-recorded in their ChromaDB config and refuse to open now. Rewrite the recorded
-provider once — the stored vectors come from the same `gemini-embedding-001`
-model and are kept as-is:
-
-```bash
-python Database/migrate_embedding_config.py --dry-run   # preview
-python Database/migrate_embedding_config.py
-```
 
 ## Testing
 
