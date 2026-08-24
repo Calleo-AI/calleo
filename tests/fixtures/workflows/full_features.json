@@ -1,0 +1,100 @@
+{
+  "schema_version": 1,
+  "id": "fixture_full",
+  "title": "Fixture workflow",
+  "description": "Exercises every schema feature: plain sections, a repeating section, choices, and every template placeholder form.",
+  "estimated_minutes": 5,
+  "intro": "Fixture intro.",
+  "conduct": ["Be brief.", "Probe every number."],
+  "scope_guard": "Stay on topic.",
+  "max_follow_ups": 2,
+  "allow_skip_default": true,
+  "messages": {
+    "complete": "Fixture complete.",
+    "skipped": "Fixture skipped."
+  },
+  "sections": [
+    {
+      "id": "basics",
+      "title": "Basics",
+      "intro": "Basics intro.",
+      "recap": "none",
+      "questions": [
+        {
+          "id": "name",
+          "prompt": "What is your name?",
+          "expects": "text",
+          "required": true,
+          "capture": ["value"],
+          "sufficiency_criteria": "Any name."
+        },
+        {
+          "id": "count",
+          "prompt": "How many per quarter?",
+          "guidance": "Probe the basis.",
+          "expects": "number",
+          "capture": ["value", "confidence"],
+          "max_follow_ups": 1,
+          "sufficiency_criteria": "A number plus a basis tag."
+        },
+        {
+          "id": "mode",
+          "prompt": "Which mode applies?",
+          "expects": "choice",
+          "choices": ["New", "Revision"],
+          "capture": ["value"],
+          "sufficiency_criteria": "One of the choices."
+        }
+      ]
+    },
+    {
+      "id": "steps",
+      "title": "Steps",
+      "recap": "deterministic",
+      "repeat": {
+        "item_label": "step",
+        "name_field": "step_name",
+        "max_items": 3,
+        "continue_question": "Another step?"
+      },
+      "questions": [
+        {
+          "id": "step_name",
+          "prompt": "What is this step called?",
+          "expects": "text",
+          "capture": ["value"],
+          "sufficiency_criteria": "Any name."
+        },
+        {
+          "id": "effort",
+          "prompt": "How long does it take?",
+          "expects": "text",
+          "capture": ["value", "confidence"],
+          "sufficiency_criteria": "A duration plus a basis tag."
+        }
+      ]
+    },
+    {
+      "id": "wrap",
+      "title": "Wrap up",
+      "recap": "none",
+      "questions": [
+        {
+          "id": "notes",
+          "prompt": "Anything else?",
+          "expects": "text",
+          "allow_skip": true,
+          "capture": ["value"],
+          "sufficiency_criteria": "Any answer."
+        }
+      ]
+    }
+  ],
+  "output_template": {
+    "format": "markdown",
+    "filename": "fixture-{{basics.name}}-{date}.md",
+    "unknown_placeholder": "dont_know",
+    "uncovered_placeholder": "not_covered",
+    "body": "# Fixture — {{basics.name}}\n\ncount: {{basics.count}} (basis: {{basics.count.confidence}})\nmode: {{basics.mode}}\n\n## Steps\n{{#repeat steps}}- {{step_name}}: {{effort}} (basis: {{effort.confidence}})\n{{/repeat}}\n\nnotes: {{wrap.notes}}\n"
+  }
+}

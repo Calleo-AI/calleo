@@ -227,14 +227,41 @@ const syncChatWidth = () => {
     chatbotEl.style.setProperty("--chat-w", panelW + "px");
 };
 
+// Clear the composer back to its resting state. Kept in one place because the
+// three steps must stay in sync — the height reset in particular, since the
+// textarea auto-grows and would otherwise stay tall after sending.
+const resetInput = () => {
+    chatInput.value = "";
+    chatInput.style.height = "38px";
+    sendChatBtn.classList.remove("active");
+};
+
+// Set the composer's text programmatically. Assigning .value does NOT fire the
+// "input" listener that auto-resizes the box and enables the send button, so
+// dispatching the event by hand is what keeps dictated text sendable.
+const setInputValue = (text) => {
+    chatInput.value = text;
+    chatInput.dispatchEvent(new Event("input", { bubbles: true }));
+};
+
 const startBlankChat = () => {
     chatbox.innerHTML = "";
     chatbox.style.display = "none";
     showWelcome();
     chatHistory = [];
-    chatInput.value = "";
-    chatInput.style.height = "38px";
-    sendChatBtn.classList.remove("active");
+    resetInput();
+    // Leaving the conversation also leaves any guided workflow — otherwise the
+    // next message would still be routed to a questionnaire that is no longer
+    // on screen. The saved run itself is kept, so the launcher chip offers to
+    // resume it rather than losing the answers.
+    if (workflowMode && window.WorkflowClient) {
+        workflowMode = null;
+        window.WorkflowClient.setActive(null);
+    }
+    // Defined further down the file; by the time this runs, module load has
+    // finished and it is initialized.
+    renderWorkflowBanner(null);
+    document.querySelectorAll(".workflow-choices").forEach(el => el.remove());
 };
 
 const formatMessage = (text) => {
@@ -502,9 +529,27 @@ const generateResponse = async (incomingChatLi) => {
     }
 }
 
-const handleChat = () => {
-    userMessage = chatInput.value.trim();
+// Id of the guided workflow currently running, or null for ordinary chat.
+// Declared here because handleChat branches on it.
+let workflowMode = null;
+
+const handleChat = (textOverride) => {
+    // textOverride lets callers (voice dictation, guided-workflow choice
+    // buttons) send text without round-tripping it through the textarea.
+    // Checked with typeof, not against undefined: handleChat is also used
+    // directly as a click listener, which would otherwise pass a MouseEvent
+    // here and blow up on .trim().
+    const source = typeof textOverride === "string" ? textOverride : chatInput.value;
+    userMessage = source.trim();
     if (!userMessage) return;
+
+    // A workflow answer goes to the workflow API, not to /chat: it must not be
+    // spam-checked, retrieved against, logged to the analytics collection, or
+    // scored for faithfulness.
+    if (workflowMode) {
+        handleWorkflowTurn(userMessage);
+        return;
+    }
 
     const language = langSelect ? langSelect.value : "English";
     const isFirstMessageOfChat = activeChatId === null;
@@ -536,9 +581,7 @@ const handleChat = () => {
             { role: "user", content: userMessage });
     }
 
-    chatInput.value = "";
-    chatInput.style.height = "38px";
-    sendChatBtn.classList.remove("active");
+    resetInput();
 
     const incomingChatLi = createChatLi("", "incoming");
     startThinkingAnimation(incomingChatLi.querySelector("p"));
@@ -577,7 +620,7 @@ chatInput.addEventListener("keydown", (e) => {
 });
 
 // Event Listeners
-sendChatBtn.addEventListener("click", handleChat);
+sendChatBtn.addEventListener("click", () => handleChat());
 chatbotToggler.addEventListener("click", () => {
     const isShowing = document.body.classList.toggle("show-chatbot");
     if (isShowing && typeof window.__cancelTogglerGlow === "function") {
@@ -744,7 +787,10 @@ if (chatbotHeader) {
 }
 
 // Restore active chat on iframe load so a refresh doesn't lose the view.
+// A workflow in progress owns the chatbox instead, and restores itself in the
+// workflow block below — so this bails out and leaves the element alone.
 (() => {
+    if (window.WorkflowClient && window.WorkflowClient.isActive()) return;
     const storedId = ChatHistoryStore.getActiveId();
     if (!storedId) return;
     const chat = ChatHistoryStore.get(storedId);
@@ -805,3 +851,456 @@ if (chatbotEl) syncRO.observe(chatbotEl);
 window.addEventListener("load", syncChatWidth);
 // Initial sync once layout has settled.
 syncChatWidth();
+
+/* ---------------------------------------------------------------------
+   Voice input (dictation)
+
+   Speech recognition runs entirely in the browser via window.VoiceInput
+   (frontend/voice_input.js) — no server round trip, no second API key.
+   Where the browser has no Web Speech API the button is never revealed and
+   everything below is inert, so typing is unaffected.
+
+   Dictated text lands in the composer for review rather than sending itself:
+   recognition mishears often enough that auto-sending would ship errors the
+   user never got to catch.
+   --------------------------------------------------------------------- */
+const micBtn = document.getElementById("mic-btn");
+const voiceStatus = document.getElementById("voice-status");
+
+const voiceTranslations = SITE_CONFIG.voiceTranslations || {};
+
+const voiceStrings = (lang) =>
+    voiceTranslations[lang] || voiceTranslations["English"] || {};
+
+let recognizer = null;
+// Text already in the box when dictation started. Interim results are appended
+// to this rather than to the live value, so each interim update REPLACES the
+// previous guess instead of stacking copies of it.
+let dictationBase = "";
+let voiceStatusTimer = null;
+
+const setVoiceStatus = (text, isError) => {
+    if (!voiceStatus) return;
+    if (voiceStatusTimer) {
+        clearTimeout(voiceStatusTimer);
+        voiceStatusTimer = null;
+    }
+    voiceStatus.textContent = text || "";
+    voiceStatus.classList.toggle("is-error", Boolean(isError));
+    // The status line borrows the disclaimer's slot, so the disclaimer has to
+    // step aside while a message is showing.
+    if (chatbotEl) chatbotEl.classList.toggle("voice-speaking", Boolean(text));
+    // Errors are transient; "Listening…" is cleared by the caller on stop.
+    if (text && isError) {
+        voiceStatusTimer = setTimeout(() => setVoiceStatus("", false), 5000);
+    }
+};
+
+const currentLang = () => (langSelect ? langSelect.value : "English");
+
+const updateVoiceText = (lang) => {
+    if (!micBtn) return;
+    const t = voiceStrings(lang);
+    const recording = micBtn.classList.contains("recording");
+    const label = recording ? t.stop : t.start;
+    if (label) {
+        micBtn.setAttribute("aria-label", label);
+        micBtn.setAttribute("title", label);
+    }
+    if (recording && t.listening) setVoiceStatus(t.listening, false);
+};
+
+const stopDictation = () => {
+    if (recognizer && recognizer.isActive()) recognizer.stop();
+};
+
+const startDictation = () => {
+    const t = voiceStrings(currentLang());
+
+    if (!recognizer) {
+        recognizer = window.VoiceInput.create({
+            lang: currentLang(),
+            onInterim: (text) => {
+                if (!text) return;
+                setInputValue((dictationBase + " " + text).trim());
+            },
+            onFinal: (text) => {
+                dictationBase = (dictationBase + " " + text).trim();
+                setInputValue(dictationBase);
+            },
+            onError: (key) => {
+                const strings = voiceStrings(currentLang());
+                setVoiceStatus(strings[key] || strings.other || "", true);
+            },
+            onEnd: () => {
+                micBtn.classList.remove("recording");
+                micBtn.setAttribute("aria-pressed", "false");
+                updateVoiceText(currentLang());
+                // Leave an error message up; otherwise clear "Listening…".
+                if (!voiceStatus.classList.contains("is-error")) {
+                    setVoiceStatus("", false);
+                }
+                chatInput.focus();
+            },
+        });
+    }
+    if (!recognizer) return;
+
+    // Continue from whatever is already typed rather than clobbering it.
+    dictationBase = chatInput.value.trim();
+    recognizer.setLang(currentLang());
+    recognizer.start();
+    micBtn.classList.add("recording");
+    micBtn.setAttribute("aria-pressed", "true");
+    updateVoiceText(currentLang());
+    setVoiceStatus(t.listening || "", false);
+
+    // Disclose once per browser that recognition is the browser's, not ours.
+    try {
+        const seenKey = `${STORAGE_PREFIX}_voice_privacy_seen`;
+        if (t.privacy && !localStorage.getItem(seenKey)) {
+            localStorage.setItem(seenKey, "1");
+            setTimeout(() => {
+                if (recognizer && recognizer.isActive()) return;
+                setVoiceStatus(t.privacy, false);
+                voiceStatusTimer = setTimeout(() => setVoiceStatus("", false), 6000);
+            }, 400);
+        }
+    } catch (_) { /* private mode: skip the notice rather than break dictation */ }
+};
+
+if (micBtn && window.VoiceInput && window.VoiceInput.isSupported()) {
+    micBtn.hidden = false;
+    updateVoiceText(currentLang());
+    micBtn.addEventListener("click", () => {
+        // start()/stop() must run inside the click handler: iOS Safari only
+        // grants microphone access on the same tick as the user gesture.
+        if (recognizer && recognizer.isActive()) stopDictation();
+        else startDictation();
+    });
+    // Sending mid-dictation would keep the recognizer running against an empty
+    // box and append the next phrase to nothing.
+    sendChatBtn.addEventListener("click", stopDictation);
+    chatInput.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" && !e.shiftKey) stopDictation();
+    });
+    if (langSelect) {
+        langSelect.addEventListener("change", () => {
+            if (recognizer) recognizer.setLang(langSelect.value);
+            updateVoiceText(langSelect.value);
+        });
+    }
+}
+
+/* ---------------------------------------------------------------------
+   Guided workflows
+
+   A workflow is a questionnaire the assistant walks the visitor through,
+   defined by a JSON spec on the server. The turn loop lives in
+   window.WorkflowClient (frontend/workflow_client.js); everything here is
+   presentation.
+
+   Two constraints shape this code:
+
+   * Workflow turns are stored in the transcript as ordinary {role, content}
+     pairs, which is exactly what renderChatIntoBox already understands. So a
+     reload replays the conversation losslessly with no schema change — and
+     crucially without bumping ChatHistoryStore's SCHEMA_VERSION, which would
+     silently discard every saved chat a visitor already has.
+   * A run is deliberately NOT a ChatHistoryStore chat. If it were, its turns
+     would be sent to /chat as `history` and trigger a title generation on an
+     interview prompt.
+   --------------------------------------------------------------------- */
+const welcomeWorkflows = document.getElementById("welcome-workflows");
+const workflowBanner = document.getElementById("workflow-banner");
+const workflowBannerText = document.getElementById("workflow-banner-text");
+const workflowExitBtn = document.getElementById("workflow-exit-btn");
+
+const workflowTranslations = SITE_CONFIG.workflowTranslations || {};
+const workflowStrings = (lang) =>
+    workflowTranslations[lang] || workflowTranslations["English"] || {};
+
+if (window.WorkflowClient) {
+    window.WorkflowClient.configure({
+        apiBase: SITE_CONFIG.apiBase || "",
+        storagePrefix: STORAGE_PREFIX,
+    });
+}
+
+const renderWorkflowBanner = (progress) => {
+    if (!workflowBanner) return;
+    const t = workflowStrings(currentLang());
+    if (!workflowMode || !progress) {
+        workflowBanner.hidden = true;
+        return;
+    }
+    workflowBanner.hidden = false;
+    workflowBannerText.textContent =
+        window.WorkflowClient.progressLabel(progress, t.progress);
+    if (workflowExitBtn) workflowExitBtn.textContent = t.exit || "Exit";
+};
+
+// Buttons live in their own row rather than inside the message bubble so the
+// transcript itself stays plain {role, content} and replays without them.
+const renderWorkflowChoices = (choices) => {
+    document.querySelectorAll(".workflow-choices").forEach(el => el.remove());
+    if (!choices || !choices.length) return;
+
+    const row = document.createElement("div");
+    row.className = "workflow-choices";
+    choices.forEach(choice => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "workflow-choice-btn";
+        btn.textContent = choice.label;
+        btn.addEventListener("click", () => {
+            // Retire the whole group: the question has moved on, and a second
+            // click would answer a question no longer being asked.
+            row.querySelectorAll("button").forEach(b => { b.disabled = true; });
+            handleWorkflowTurn(choice.value);
+        });
+        row.appendChild(btn);
+    });
+    chatbox.appendChild(row);
+};
+
+const appendWorkflowMessage = (content) => {
+    const li = createChatLi("", "incoming");
+    li.querySelector("p").innerHTML = formatMessage(content);
+    chatbox.appendChild(li);
+    return li;
+};
+
+const downloadDocument = (doc) => {
+    const blob = new Blob([doc.body], { type: "text/markdown;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = doc.filename || "response.md";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    // Revoking immediately can cancel the download in some browsers.
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+};
+
+const copyText = async (text) => {
+    try {
+        await navigator.clipboard.writeText(text);
+        return true;
+    } catch (_) {
+        // Older browsers, and any context where the clipboard permission was
+        // not delegated to this iframe.
+        try {
+            const area = document.createElement("textarea");
+            area.value = text;
+            area.style.position = "fixed";
+            area.style.opacity = "0";
+            document.body.appendChild(area);
+            area.select();
+            const ok = document.execCommand("copy");
+            document.body.removeChild(area);
+            return ok;
+        } catch (__) {
+            return false;
+        }
+    }
+};
+
+const renderWorkflowDocument = (doc, workflowId) => {
+    const t = workflowStrings(currentLang());
+    const card = document.createElement("div");
+    card.className = "workflow-doc";
+
+    const body = document.createElement("div");
+    body.className = "workflow-doc-body";
+    body.innerHTML = formatMessage(doc.body);
+    card.appendChild(body);
+
+    const actions = document.createElement("div");
+    actions.className = "workflow-doc-actions";
+
+    const addButton = (label, onClick) => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "workflow-choice-btn";
+        btn.textContent = label;
+        btn.addEventListener("click", () => onClick(btn));
+        actions.appendChild(btn);
+        return btn;
+    };
+
+    addButton(t.copy || "Copy", async (btn) => {
+        const ok = await copyText(doc.body);
+        btn.textContent = ok ? (t.copied || "Copied") : (t.copy || "Copy");
+        setTimeout(() => { btn.textContent = t.copy || "Copy"; }, 2000);
+    });
+
+    addButton(t.download || "Download", () => downloadDocument(doc));
+
+    addButton(t.email || "Email it", (btn) => {
+        btn.disabled = true;
+        window.WorkflowClient.submit(workflowId, true)
+            .then(result => {
+                btn.textContent = result && result.emailed
+                    ? (t.emailed || "Sent")
+                    : (t.emailFailed || "Couldn't send");
+            })
+            .catch(() => { btn.textContent = t.emailFailed || "Couldn't send"; });
+    });
+
+    card.appendChild(actions);
+    chatbox.appendChild(card);
+};
+
+const applyWorkflowTurn = (turn, workflowId) => {
+    turn.messages.forEach(m => appendWorkflowMessage(m.content));
+
+    if (turn.status === "complete" && turn.document) {
+        renderWorkflowDocument(turn.document, workflowId);
+        // Save the response server-side without emailing; the Email button
+        // above is what opts into mail.
+        window.WorkflowClient.submit(workflowId, false).catch(() => {});
+        workflowMode = null;
+        renderWorkflowBanner(null);
+        renderWorkflowChoices([]);
+    } else {
+        renderWorkflowBanner(turn.progress);
+        renderWorkflowChoices(turn.choices);
+    }
+
+    chatbox.scrollTo({ top: chatbox.scrollHeight, behavior: "smooth" });
+};
+
+function handleWorkflowTurn(text) {
+    const workflowId = workflowMode;
+    if (!workflowId) return;
+
+    chatbox.appendChild(createChatLi(text, "outgoing"));
+    resetInput();
+    document.querySelectorAll(".workflow-choices").forEach(el => el.remove());
+
+    const thinking = createChatLi("", "incoming");
+    startThinkingAnimation(thinking.querySelector("p"));
+    chatbox.appendChild(thinking);
+    chatbox.scrollTo({ top: chatbox.scrollHeight, behavior: "smooth" });
+
+    window.WorkflowClient.send(workflowId, text, currentLang())
+        .then(turn => {
+            thinking.remove();
+            applyWorkflowTurn(turn, workflowId);
+        })
+        .catch(err => {
+            thinking.remove();
+            const t = workflowStrings(currentLang());
+            const li = appendWorkflowMessage(t.failed || "Something went wrong.");
+            li.querySelector("p").style.color = "#cc0000";
+            console.warn("[workflow] turn failed:", err.message);
+        });
+}
+
+const startWorkflow = (workflowId) => {
+    workflowMode = workflowId;
+    chatbox.innerHTML = "";
+    chatbox.style.display = "";
+    if (welcomeScreen) welcomeScreen.classList.add("hidden");
+    // A workflow is not a chat: keep it out of the sidebar history entirely.
+    activeChatId = null;
+    ChatHistoryStore.setActiveId(null);
+    chatHistory = [];
+
+    window.WorkflowClient.start(workflowId, currentLang())
+        .then(turn => applyWorkflowTurn(turn, workflowId))
+        .catch(err => {
+            workflowMode = null;
+            const t = workflowStrings(currentLang());
+            appendWorkflowMessage(t.failed || "Something went wrong.");
+            console.warn("[workflow] start failed:", err.message);
+        });
+};
+
+const exitWorkflow = () => {
+    if (workflowMode) window.WorkflowClient.setActive(null);
+    workflowMode = null;
+    renderWorkflowBanner(null);
+    renderWorkflowChoices([]);
+    startBlankChat();
+};
+
+if (workflowExitBtn) workflowExitBtn.addEventListener("click", exitWorkflow);
+
+const renderWorkflowLaunchers = (workflows) => {
+    if (!welcomeWorkflows) return;
+    welcomeWorkflows.innerHTML = "";
+    if (!workflows || !workflows.length) return;   // nothing configured: stay invisible
+
+    const t = workflowStrings(currentLang());
+    const heading = document.createElement("p");
+    heading.className = "welcome-workflows-heading";
+    heading.textContent = t.heading || "Or start a guided walkthrough:";
+    welcomeWorkflows.appendChild(heading);
+
+    workflows.forEach(workflow => {
+        const existing = window.WorkflowClient.getRun(workflow.id);
+        const resumable = existing && existing.status !== "complete";
+
+        const chip = document.createElement("button");
+        chip.type = "button";
+        chip.className = "workflow-chip";
+
+        const title = document.createElement("span");
+        title.className = "workflow-chip-title";
+        title.textContent = resumable
+            ? `${t.resume || "Resume"}: ${workflow.title}`
+            : workflow.title;
+
+        const meta = document.createElement("span");
+        meta.className = "workflow-chip-meta";
+        const bits = [];
+        if (workflow.estimated_minutes) {
+            bits.push((t.minutes || "~{n} min").replace("{n}", workflow.estimated_minutes));
+        }
+        if (workflow.questions) bits.push(`${workflow.questions} questions`);
+        meta.textContent = bits.join(" · ");
+
+        chip.appendChild(title);
+        if (meta.textContent) chip.appendChild(meta);
+        chip.addEventListener("click", () => {
+            if (resumable) resumeWorkflow(workflow.id);
+            else startWorkflow(workflow.id);
+        });
+        welcomeWorkflows.appendChild(chip);
+    });
+};
+
+function resumeWorkflow(workflowId) {
+    const run = window.WorkflowClient.getRun(workflowId);
+    if (!run) { startWorkflow(workflowId); return; }
+    workflowMode = workflowId;
+    window.WorkflowClient.setActive(workflowId);
+    if (welcomeScreen) welcomeScreen.classList.add("hidden");
+    chatbox.style.display = "";
+    // The saved transcript is plain {role, content}, so the ordinary renderer
+    // replays it. Only the live controls need rebuilding.
+    renderChatIntoBox(run.messages || []);
+    renderWorkflowBanner(run.progress);
+    renderWorkflowChoices(run.choices);
+    chatbox.scrollTo({ top: chatbox.scrollHeight });
+}
+
+if (window.WorkflowClient) {
+    // Restore a run in progress before anything else paints the chatbox.
+    const activeId = window.WorkflowClient.activeWorkflowId();
+    if (activeId && window.WorkflowClient.getRun(activeId)) {
+        resumeWorkflow(activeId);
+    }
+    window.WorkflowClient.list().then(renderWorkflowLaunchers);
+
+    if (langSelect) {
+        langSelect.addEventListener("change", () => {
+            const run = workflowMode && window.WorkflowClient.getRun(workflowMode);
+            renderWorkflowBanner(run ? run.progress : null);
+            window.WorkflowClient.list().then(renderWorkflowLaunchers);
+        });
+    }
+}

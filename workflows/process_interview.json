@@ -1,0 +1,266 @@
+{
+  "schema_version": 1,
+  "id": "process_interview",
+  "title": "Process discovery interview",
+  "description": "Map how a process actually works today, where the time goes, and what you need from a better version of it.",
+  "estimated_minutes": 45,
+
+  "intro": "Thanks for doing this. I'll walk you through this one section at a time, in plain conversation — answer in your own words and I'll structure it.\n\nThere are no wrong answers. If you don't know a number, say so: \"best guess\" and \"don't know\" are both useful, and honesty about what's messy is the point. You can say \"skip\" to any question, or \"stop\" to pause and pick up later from where you left off.\n\nAt the end I'll hand you a filled-in summary you can save or send on.",
+
+  "conduct": [
+    "Go one section at a time. Never dump a list of questions at once.",
+    "Probe every quantitative claim gently: if a time or number is given, ask how they know it — from experience, from a record they could point to, or a best guess.",
+    "Tag each number as measured, estimate, or don't know. Never guess the tag on their behalf.",
+    "Keep it conversational and warm. This person is doing you a favour; never make them feel tested.",
+    "If they say a step should be split, or that something is really two things, follow their model of the work rather than the script.",
+    "It is always fine to skip a question that doesn't apply.",
+    "Never invent or infer a number, name, or detail the participant did not state."
+  ],
+  "scope_guard": "This interview covers one process end to end. If the participant raises a neighbouring process, note it in one sentence, say it has its own conversation, and steer back.",
+
+  "max_follow_ups": 2,
+  "allow_skip_default": true,
+
+  "messages": {
+    "complete": "That's everything — thank you, this is genuinely useful. Here's the filled-in summary. Save it or send it on to whoever asked you to do this.",
+    "stopped": "Saved right here. Come back any time and we'll pick up at the same question."
+  },
+
+  "sections": [
+    {
+      "id": "participant",
+      "title": "About you",
+      "intro": "First, a little context about you and your role.",
+      "recap": "none",
+      "questions": [
+        {
+          "id": "name",
+          "prompt": "What's your name, and what's your role?",
+          "expects": "text",
+          "required": true,
+          "capture": ["value"],
+          "sufficiency_criteria": "Sufficient when both a name and some sense of their role are given."
+        },
+        {
+          "id": "team",
+          "prompt": "Which team or group do you represent — or do you run this process yourself?",
+          "expects": "text",
+          "capture": ["value"],
+          "sufficiency_criteria": "Sufficient when a team, group, or ownership of the process is identified."
+        },
+        {
+          "id": "frequency",
+          "prompt": "Roughly how many times do you touch this process in a typical quarter?",
+          "guidance": "A number or a range is fine. Then ask whether that's from a record, from experience, or a best guess.",
+          "expects": "number",
+          "capture": ["value", "confidence"],
+          "sufficiency_criteria": "Sufficient when a rough count or range is given AND tagged measured/estimate/guess."
+        }
+      ]
+    },
+    {
+      "id": "initiation",
+      "title": "How it starts",
+      "intro": "Processes often kick off in more than one way, and the path can change who's involved.",
+      "recap": "deterministic",
+      "questions": [
+        {
+          "id": "trigger",
+          "prompt": "What kicks this process off, and who asks for it?",
+          "guidance": "Probe whether there is more than one way it can start, and whether the steps differ by path.",
+          "expects": "text",
+          "required": true,
+          "capture": ["value"],
+          "sufficiency_criteria": "Sufficient when the trigger and the requester are both identifiable."
+        },
+        {
+          "id": "starting_point",
+          "prompt": "When it starts, are you working from a blank sheet, or from something that already exists?",
+          "guidance": "Prepopulated from a previous round, derived from existing data, or genuinely from scratch.",
+          "expects": "text",
+          "capture": ["value"],
+          "sufficiency_criteria": "Sufficient when the starting material is described."
+        }
+      ]
+    },
+    {
+      "id": "process_steps",
+      "title": "The steps, one at a time",
+      "intro": "Now let's walk the process itself. We'll take one step at a time — tell me the steps as you actually experience them, not as anyone has written them down. I'll ask about each one, then check whether there's another.",
+      "recap": "deterministic",
+      "repeat": {
+        "item_label": "step",
+        "name_field": "step_name",
+        "max_items": 12,
+        "continue_question": "Is there another step after that one?"
+      },
+      "questions": [
+        {
+          "id": "step_name",
+          "prompt": "What would you call this step?",
+          "guidance": "Use their words for it verbatim — their naming is data.",
+          "expects": "text",
+          "required": true,
+          "capture": ["value"],
+          "sufficiency_criteria": "Sufficient as soon as the step has a name."
+        },
+        {
+          "id": "owner",
+          "prompt": "Who actually does this step?",
+          "expects": "text",
+          "capture": ["value"],
+          "sufficiency_criteria": "Sufficient when a role or person is named."
+        },
+        {
+          "id": "effort",
+          "prompt": "How much hands-on time does this step take — actually doing the work, not waiting?",
+          "guidance": "Push gently for a unit (hours, days). Then ask whether that's measured, an estimate, or a guess.",
+          "expects": "text",
+          "capture": ["value", "confidence"],
+          "sufficiency_criteria": "Sufficient when a duration with a unit is given AND tagged measured/estimate/guess."
+        },
+        {
+          "id": "duration",
+          "prompt": "And how long does it take start to finish in wall-clock time, including any waiting?",
+          "guidance": "The gap between this and hands-on effort is queue time, which is the interesting part. Probe the basis.",
+          "expects": "text",
+          "capture": ["value", "confidence"],
+          "sufficiency_criteria": "Sufficient when elapsed time is given AND tagged measured/estimate/guess."
+        },
+        {
+          "id": "judgment",
+          "prompt": "What's the judgement call in this step — the part you couldn't write down as a rule?",
+          "expects": "text",
+          "capture": ["value"],
+          "sufficiency_criteria": "Sufficient when the judgement involved is described, or they say there isn't any."
+        },
+        {
+          "id": "pain",
+          "prompt": "What's the most painful or error-prone part of this step?",
+          "expects": "text",
+          "capture": ["value"],
+          "sufficiency_criteria": "Sufficient when a difficulty is named, or they say it runs smoothly."
+        }
+      ]
+    },
+    {
+      "id": "pain",
+      "title": "Where it hurts",
+      "intro": "Stepping back from the individual steps now.",
+      "recap": "deterministic",
+      "questions": [
+        {
+          "id": "biggest_frustration",
+          "prompt": "What was your single biggest frustration with this process over the last few months?",
+          "expects": "text",
+          "capture": ["value"],
+          "sufficiency_criteria": "Sufficient when a specific frustration is described."
+        },
+        {
+          "id": "accountability",
+          "prompt": "When the output is wrong or late, who is actually accountable?",
+          "expects": "text",
+          "capture": ["value"],
+          "sufficiency_criteria": "Sufficient when accountability is described, including \"nobody\" or \"it's unclear\"."
+        },
+        {
+          "id": "time_leak",
+          "prompt": "Where does the most time leak — and is that people working, or people waiting?",
+          "guidance": "The effort-versus-waiting distinction matters; make sure one of the two is identified.",
+          "expects": "text",
+          "capture": ["value"],
+          "sufficiency_criteria": "Sufficient when a location is named AND it is clear whether it is effort or waiting."
+        },
+        {
+          "id": "bias_direction",
+          "prompt": "Compared to what's actually needed in the end, do the outputs of this process tend to run high, low, or about right?",
+          "expects": "choice",
+          "choices": ["High", "Low", "About right", "It varies"],
+          "capture": ["value"],
+          "sufficiency_criteria": "Sufficient when a direction is chosen."
+        },
+        {
+          "id": "bias_reason",
+          "prompt": "If there's a lean in one direction — is there a rational reason for it, given how the process works today?",
+          "guidance": "Ask about the incentives, not the people: short turnarounds, no consequence for overshooting, the risk of being caught short. Make clear you're asking about the process, not judging anyone.",
+          "expects": "text",
+          "capture": ["value"],
+          "sufficiency_criteria": "Sufficient when the incentive is described, or they say there is no systematic lean."
+        }
+      ]
+    },
+    {
+      "id": "future",
+      "title": "What you'd need from a better version",
+      "intro": "Last section — this is the part that shapes what gets built.",
+      "recap": "deterministic",
+      "questions": [
+        {
+          "id": "trust",
+          "prompt": "If a system proposed a starting answer for you, what would it take for you to trust it enough to start from it rather than from scratch?",
+          "expects": "text",
+          "capture": ["value"],
+          "sufficiency_criteria": "Sufficient when at least one trust condition is described."
+        },
+        {
+          "id": "must_control",
+          "prompt": "What must your team still be able to change by hand, no matter how good the proposal is?",
+          "expects": "text",
+          "capture": ["value"],
+          "sufficiency_criteria": "Sufficient when at least one variable is named."
+        },
+        {
+          "id": "record_rationale",
+          "prompt": "When you override a proposed number, what reason would you want recorded alongside the change?",
+          "guidance": "This separates assumptions about the work itself from reasons for distrusting the proposal.",
+          "expects": "text",
+          "capture": ["value"],
+          "sufficiency_criteria": "Sufficient when the kind of rationale worth capturing is described."
+        },
+        {
+          "id": "faster",
+          "prompt": "What would genuinely make this faster for your team, and pull you out of it more?",
+          "expects": "text",
+          "capture": ["value"],
+          "sufficiency_criteria": "Sufficient when at least one concrete improvement is named."
+        },
+        {
+          "id": "adoption_risk",
+          "prompt": "What would make a new version of this fail to get adopted?",
+          "expects": "text",
+          "capture": ["value"],
+          "sufficiency_criteria": "Sufficient when at least one adoption risk is named."
+        }
+      ]
+    },
+    {
+      "id": "wrap_up",
+      "title": "Anything we missed",
+      "recap": "none",
+      "questions": [
+        {
+          "id": "gaps",
+          "prompt": "What didn't I ask about that I should have?",
+          "expects": "text",
+          "capture": ["value"],
+          "sufficiency_criteria": "Sufficient with any answer, including \"nothing\"."
+        },
+        {
+          "id": "other_people",
+          "prompt": "Who else would we need to talk to for this picture to be accurate?",
+          "expects": "text",
+          "capture": ["value"],
+          "sufficiency_criteria": "Sufficient when names or roles are given, or they say nobody else."
+        }
+      ]
+    }
+  ],
+
+  "output_template": {
+    "format": "markdown",
+    "filename": "process-interview-{{participant.name}}-{date}.md",
+    "unknown_placeholder": "dont_know",
+    "uncovered_placeholder": "not_covered",
+    "body": "# Process discovery interview — {{participant.name}}\n\n## Participant\n\n- **Name:** {{participant.name}}\n- **Role / team:** {{participant.team}}\n- **Times per quarter:** {{participant.frequency}} _(basis: {{participant.frequency.confidence}})_\n\n## How it starts\n\n- **Trigger and requester:** {{initiation.trigger}}\n- **Starting material:** {{initiation.starting_point}}\n\n## Current-state steps\n\n{{#repeat process_steps}}### {{step_name}}\n\n- **Owner:** {{owner}}\n- **Hands-on effort:** {{effort}} _(basis: {{effort.confidence}})_\n- **Elapsed duration:** {{duration}} _(basis: {{duration.confidence}})_\n- **Judgement involved:** {{judgment}}\n- **Most painful part:** {{pain}}\n\n{{/repeat}}\n## Judgement and pain\n\n- **Biggest frustration:** {{pain.biggest_frustration}}\n- **Accountability when wrong or late:** {{pain.accountability}}\n- **Where time leaks:** {{pain.time_leak}}\n- **Output lean:** {{pain.bias_direction}}\n- **Rational driver for that lean:** {{pain.bias_reason}}\n\n## Future state\n\n- **What would earn trust:** {{future.trust}}\n- **Must stay under team control:** {{future.must_control}}\n- **Rationale worth recording:** {{future.record_rationale}}\n- **What would make it faster:** {{future.faster}}\n- **Adoption risks:** {{future.adoption_risk}}\n\n## Follow-ups\n\n- **What we didn't ask:** {{wrap_up.gaps}}\n- **Others to interview:** {{wrap_up.other_people}}\n\n---\n\n_Captured through a guided interview. Values marked `dont_know` were skipped or unknown; `not_covered` means the interview ended before that question._\n"
+  }
+}

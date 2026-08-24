@@ -190,3 +190,53 @@ def test_desktop_sidebar_has_no_slide_of_its_own():
     assert "body.mobile.sidebar-open .chat-sidebar {" in WIDGET_CSS
     mobile_rule = WIDGET_CSS.split("body.mobile.sidebar-open .chat-sidebar {", 1)[1]
     assert "transform: translateX(0);" in mobile_rule.split("}", 1)[0]
+
+
+# ---------------------------------------------------------------------------
+# Voice input requires a delegated microphone permission
+# ---------------------------------------------------------------------------
+
+def test_iframe_delegates_the_microphone_permission():
+    """Without `microphone` in `allow`, dictation is dead on every embed.
+
+    The widget runs in a cross-origin iframe, and browsers block speech
+    recognition inside one unless the embedding page delegates the permission.
+    This snippet is hand-pasted into a CMS, so a regression here is invisible
+    until a user taps the mic on the live site.
+    """
+    iframe = SOUP.find("iframe", id="site-chatbot-iframe")
+    allow = iframe.get("allow", "")
+    assert "microphone" in allow
+    # The clipboard grant powers Copy on a finished workflow document.
+    assert "clipboard-write" in allow
+
+
+def test_iframe_markup_has_the_mic_button_and_status_line():
+    assert IFRAME_SOUP.find("button", id="mic-btn") is not None
+    status = IFRAME_SOUP.find(id="voice-status")
+    assert status is not None
+    # Screen readers need the state change announced without a focus move.
+    assert status.get("aria-live") == "polite"
+
+
+def test_mic_button_starts_hidden_and_is_revealed_only_when_supported():
+    """Firefox has no Web Speech API; the button must never appear there."""
+    mic = IFRAME_SOUP.find("button", id="mic-btn")
+    assert mic.has_attr("hidden")
+    assert "VoiceInput.isSupported()" in WIDGET_JS
+    assert ".mic-btn[hidden]" in WIDGET_CSS
+
+
+def test_voice_and_workflow_scripts_load_before_chatbot_js():
+    """Both publish globals chatbot.js reads at load time."""
+    order = [s.get("src") for s in IFRAME_SOUP.find_all("script") if s.get("src")]
+    assert order.index("voice_input.js") < order.index("chatbot.js")
+    assert order.index("workflow_client.js") < order.index("chatbot.js")
+
+
+def test_workflow_launcher_and_banner_markup_present():
+    assert IFRAME_SOUP.find(id="welcome-workflows") is not None
+    banner = IFRAME_SOUP.find(id="workflow-banner")
+    assert banner is not None
+    # Hidden until a workflow actually starts.
+    assert banner.has_attr("hidden")

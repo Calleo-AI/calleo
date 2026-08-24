@@ -20,6 +20,8 @@ Database/rebuild_report.txt
 Database/rebuild.log
 agent_analysis/analysis_reports/*.md
 agent_analysis/*.jsonl
+# Completed guided-workflow responses — may contain personal details
+workflow_responses/
 
 # Logs / runtime
 *.log

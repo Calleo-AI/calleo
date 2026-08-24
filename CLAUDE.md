@@ -32,8 +32,13 @@ python Database/update_db.py [URL ...]
 python Database/update_db.py --dry-run
 python Database/update_db.py --collection full_database URL
 
+# Validate a workflow spec without starting the server
+python -c "import sys; sys.path.insert(0,'agent_chatbot'); sys.path.insert(0,'.'); \
+import workflow_specs as ws; print(ws.load_spec('workflows/contact_intake.json')[1])"
+
 # Run all tests
 pytest tests/
+node --test 'tests/frontend/test_*.mjs'   # widget unit tests (no npm install needed)
 
 # Run a single test file or test
 pytest tests/test_chatbot.py
@@ -59,6 +64,15 @@ Browser iframe  →  chatbot.js  →  Flask /chat
                                →  make_prompt (constructs system prompt)
                                →  Qwen via OpenRouter (generates answer)
                                →  logs to full_database_conversations
+```
+
+A guided workflow takes a **separate path** and shares none of that pipeline:
+
+```
+Browser iframe  →  workflow_client.js  →  Flask /api/workflow/turn
+                   (holds the state)   →  workflow_engine.handle_turn
+                                       →  judge_answer (one cheap LLM call)
+                                       →  deterministic advance + render
 ```
 
 ### Key architectural facts
@@ -88,6 +102,18 @@ Calleo is deliberately organization-agnostic: it targets schools, NGOs, and any 
 1. Flask-Limiter (20 req/min) keyed on a SHA-256 client fingerprint (IP + User-Agent + Accept headers)
 2. Custom `spam_tracker` catches gibberish (<50% alphanumeric), duplicate messages (same message ≥3× in 5 min), and rapid-fire (≥10 messages in 60 s)
 
+**Voice input is entirely client-side and touches no Python.** `frontend/voice_input.js` wraps the browser's Web Speech API (`SpeechRecognition` / `webkitSpeechRecognition`) as a DOM-free IIFE publishing `window.VoiceInput`, unit-tested in Node with a fake recognizer. This is deliberate: OpenRouter exposes no audio-transcription endpoint, so server-side STT would mean a second provider and a second key, breaking the single-key invariant above. Firefox has no Web Speech API, so `isSupported()` is false there and the mic button is never revealed. Two things are easy to break: the embed iframe must carry `allow="…; microphone"` (`frontend/embed-snippet.html`, asserted by `test_embed_snippet.py`) or dictation silently dies on every embed; and `chatInput.value = x` does NOT fire the `input` listener that resizes the box and enables the send button — use `setInputValue()`.
+
+**Guided workflows (`agent_chatbot/workflow_engine.py` + `workflow_specs.py`, specs in `workflows/*.json`).** A questionnaire the assistant walks a visitor through. The load-bearing design choice: **the model never decides what happens next and never writes the final document.** Sequencing, follow-up budgets, skip handling, progress and rendering are deterministic Python; the LLM is called at most once per answer, to judge sufficiency AND normalize the answer into typed fields (`value`, `confidence`). Because normalization happens per turn, the final document is pure string substitution — which is what makes "never invent a number" structurally true, removes the prompt-injection sink, and leaves ~90% of the engine testable with no mocks. `parse_judge_output` **fails open**: unparseable JSON accepts the answer rather than re-asking a question the person already answered.
+
+Workflow state is an opaque JSON blob the *client* holds and echoes back, exactly as `/chat` round-trips `history` — so the server stays stateless and multi-worker safe. That makes it untrusted input: `validate_state` re-checks every bound on arrival (spec hash, cursor range, blob size, per-answer truncation, enum coercion) and is the security boundary for the whole feature. A spec edited mid-run raises `WorkflowSpecChanged`, which the route answers with a 409 carrying a migrated state rather than losing the answers.
+
+**Workflow routes are separate from `/chat` on purpose, not for tidiness.** `check_spam` would fire on ordinary answers — `is_gibberish("~40% / 60% (+-5)")` is True, and the duplicate rule blocks a third identical "I don't know", which is normal in an interview. Retrieval and the faithfulness judge are meaningless without retrieved chunks. And workflow turns must stay out of `full_database_conversations`, which `dashboard_data` reads unfiltered and which costs an embedding call per `add()`. Being separate routes means none of that is a conditional — it simply is not reached. `tests/test_workflow_endpoints.py` pins all four.
+
+**Frontend asset routes are one allowlisted handler**, not one route per file (`_FRONTEND_FILES` / `_serve_frontend` in `server.py`). Add a new widget file to that set or it 404s. The catch-all `/<path:filename>` only ever serves names in the allowlist.
+
+**Workflow transcripts are stored as ordinary `{role, content}` pairs** so `renderChatIntoBox` replays them untouched on reload — this avoids bumping `SCHEMA_VERSION` in `chat_history_store.js`, which silently discards every saved chat. A run is deliberately NOT a `ChatHistoryStore` chat; if it were, its turns would be sent to `/chat` as `history` and trigger `/generate-title` on an interview prompt.
+
 ### Analysis agent (`agent_analysis/`)
 
 `analysis_agent.py` fetches all documents from `full_database_conversations`, parses `"User: ...\nAI: ..."` log format, sends the batch to Qwen for trend analysis, and writes a dated markdown report to `agent_analysis/analysis_reports/`. `email_report.py` then emails the report as an attachment.
@@ -113,5 +139,7 @@ Tests live in `tests/` and use pytest with `unittest.mock`. The pattern for each
 1. Set dummy env vars (`OPENROUTER_API_KEY`, `CHROMA_DB_PATH`) before importing the module under test.
 2. Patch `chatbot.get_chroma_db` so module-level DB initialisation doesn't hit real ChromaDB.
 3. Test pure functions directly; mock LLM calls with `MagicMock` / `AsyncMock`.
+
+`workflow_specs.py` and most of `workflow_engine.py` are pure and tested without mocks (`test_workflow_specs.py`, `test_workflow_engine.py`); the judge is injectable, so the whole state machine is driven without a provider. `test_workflow_endpoints.py` disables rate limiting via `server.limiter.enabled = False` — Flask-Limiter resolves `RATELIMIT_ENABLED` once at `init_app`, so setting the config key afterwards has no effect. Frontend logic follows the `chat_history_store.js` pattern: a DOM-free IIFE loaded in Node via `new Function("window", src)`, run with `node --test`.
 
 `discovery.py`, `chunking.py`, and `extraction.py` are pure and tested without mocks; `tests/fixtures/*.html` are small hand-written Blackbaud-shaped pages for extraction tests. `test_create_db.py` / `test_update_db.py` use a shared `FakeCollection` stand-in instead of real ChromaDB. `tests/conftest.py` imports pyarrow first to pin Windows DLL load order — without it, collection crashes with an access violation when chromadb/grpc load before pyarrow.

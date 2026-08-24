@@ -101,3 +101,54 @@ NO_INFO_MESSAGE = (
 SPAM_GIBBERISH_MESSAGE = f"Please enter a valid question about {SITE_NAME}."
 
 CONTACT_EMAIL = "info@example-site.org"
+
+# --- Guided workflows (agent_chatbot/workflow_engine.py) --------------------
+# A "workflow" is a guided questionnaire the assistant walks a visitor through:
+# sections of questions, asked one at a time, with follow-ups when an answer is
+# vague, and a filled-in document at the end. Each one is a JSON file in
+# WORKFLOWS_DIR — see workflows/README.md for the format.
+
+WORKFLOWS_ENABLED = True
+
+# Where spec files live. Relative paths resolve against the repo root; the
+# WORKFLOWS_DIR env var overrides this entirely (use it to keep specs outside
+# the repo). Set WORKFLOWS_ENABLED = False to hide the feature without deleting
+# the files.
+WORKFLOWS_DIR = "workflows"
+
+# Completed responses are written here as markdown. Relative to the repo root;
+# WORKFLOW_RESPONSES_DIR in the environment overrides it. There is deliberately
+# no HTTP route that reads this back — responses can contain personal details
+# and the dashboard API has no authentication.
+WORKFLOW_RESPONSES_DIR = "workflow_responses"
+
+# Hard limits. These are safety rails, not tuning knobs: the workflow state
+# blob round-trips through the client on every request, so it is untrusted
+# input and every bound below is enforced server-side on arrival.
+WORKFLOW_MAX_STATE_BYTES = 128 * 1024   # reject a blob larger than this
+WORKFLOW_MAX_TURNS = 150                # force-complete a runaway interview
+WORKFLOW_MAX_RAW_CHARS = 1500           # truncate a single stored answer
+WORKFLOW_MAX_VALUE_CHARS = 500          # truncate a single normalized value
+
+# Canned engine replies. Kept here for the same reason DEFERRAL_MESSAGE is:
+# one source of truth that tests assert against. A spec's "messages" block
+# overrides any of these for that workflow.
+WORKFLOW_ERROR_MESSAGE = (
+    "Something went wrong handling that answer, but I've kept your progress. "
+    "Let's carry on."
+)
+WORKFLOW_SPEC_CHANGED_MESSAGE = (
+    "This questionnaire was updated since you started. I've kept the answers "
+    "that still apply and picked up from there."
+)
+WORKFLOW_SKIPPED_MESSAGE = "No problem — noted as skipped."
+WORKFLOW_DONT_KNOW_MESSAGE = "That's fine, \"don't know\" is a useful answer too."
+WORKFLOW_STOPPED_MESSAGE = (
+    "Saved. You can pick this up again any time from where you left off."
+)
+WORKFLOW_COMPLETE_MESSAGE = (
+    "That's everything — thank you. Here is the filled-in summary."
+)
+
+# Subject line for emailed responses. {title} is the workflow's title.
+WORKFLOW_EMAIL_SUBJECT = f"[{SITE_SHORT_NAME}] Completed questionnaire: {{title}}"

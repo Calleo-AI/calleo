@@ -68,9 +68,20 @@
             <button class="contact-banner-close" id="contact-banner-close" aria-label="Dismiss">&times;</button>
         </div>
 
+        <!-- Shown only while a guided workflow is running. Reuses the banner
+             styles that already sit below the header. -->
+        <div id="workflow-banner" class="workflow-banner" hidden>
+            <span class="workflow-banner-text" id="workflow-banner-text"></span>
+            <button class="workflow-banner-btn" id="workflow-exit-btn" type="button">Exit</button>
+        </div>
+
         <div class="welcome-screen" id="welcome-screen">
             <!-- Text is replaced from site_config.js translations on load -->
             <p class="welcome-text">Hi! <span class="wave-emoji">👋</span><br><span class="welcome-tagline">What is your question?</span></p>
+            <!-- Guided-workflow launcher. Populated from GET /api/workflows;
+                 stays empty and invisible when no specs are configured, so a
+                 deployment without workflows looks exactly as it did before. -->
+            <div class="welcome-workflows" id="welcome-workflows"></div>
         </div>
 
         <div class="gradient-wave" aria-hidden="true"></div>
@@ -78,6 +89,17 @@
         <ul class="chatbox" style="display:none;"></ul>
         <div class="chat-input">
             <textarea placeholder="Ask me anything..." spellcheck="false" required></textarea>
+            <!-- Voice dictation. Hidden by default and revealed by chatbot.js only
+                 when the browser exposes the Web Speech API, so browsers without
+                 it (Firefox) simply never show a button that cannot work. -->
+            <button id="mic-btn" class="mic-btn" type="button" hidden
+                    aria-pressed="false" aria-label="Speak your question">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="9" y="2" width="6" height="11" rx="3"></rect>
+                    <path d="M5 10a7 7 0 0 0 14 0"></path>
+                    <line x1="12" y1="17" x2="12" y2="21"></line>
+                </svg>
+            </button>
             <button id="send-btn" class="send-btn" type="button" aria-label="Send message">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                     <line x1="12" y1="19" x2="12" y2="5"></line>
@@ -85,6 +107,10 @@
                 </svg>
             </button>
         </div>
+        <!-- Dictation state and microphone errors. aria-live so a screen reader
+             announces "Listening…" without the focus having to move here. -->
+        <div class="voice-status" id="voice-status" role="status" aria-live="polite"></div>
+
         <div class="chat-disclaimer" id="chat-disclaimer">AI generated content. Always double check sources.</div>
 
         <!-- iOS-style resize handle (bottom-left corner). The grip is the
@@ -125,6 +151,8 @@
 
     <script src="site_config.js"></script>
     <script src="chat_history_store.js"></script>
+    <script src="voice_input.js"></script>
+    <script src="workflow_client.js"></script>
     <script src="chatbot.js"></script>
 </body>
 

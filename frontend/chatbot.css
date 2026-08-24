@@ -1088,6 +1088,7 @@ body.sidebar-open .chatbot {
    of the container; --chat-w tracks the panel width, which the parent page
    keeps constant whether or not the sidebar is open. */
 .chatbot > #contact-banner,
+.chatbot > #workflow-banner,
 .chatbot > .welcome-screen,
 .chatbot > .chatbox,
 .chatbot > .chat-disclaimer,
@@ -1253,6 +1254,7 @@ body.show-chatbot .chatbot .resize-handle {
 }
 
 .chatbot.mobile > #contact-banner,
+.chatbot.mobile > #workflow-banner,
 .chatbot.mobile > .welcome-screen,
 .chatbot.mobile > .chatbox,
 .chatbot.mobile > .chat-input,
@@ -1317,4 +1319,289 @@ body.mobile.sidebar-open .chat-scrim {
    keeps its normal mobile rounded corners while open. */
 body.mobile.sidebar-open .chatbot {
     border-radius: 20px 20px 0 0;
+}
+
+
+/* ---------------------------------------------------------------------------
+   Voice input (dictation)
+   The mic sits beside the send button inside .chat-input, which is
+   display:flex; align-items:flex-end — so it lines up with the send button
+   regardless of how tall the textarea has grown.
+   --------------------------------------------------------------------------- */
+.mic-btn {
+    width: 34px;
+    height: 34px;
+    margin-bottom: 2px;
+    margin-right: 6px;
+    border-radius: 10px;
+    border: 1.5px solid #ccc;
+    background: #e8e8e8;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    outline: none;
+    padding: 0;
+    transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+/* .mic-btn sets display:flex, which would otherwise win over the `hidden`
+   attribute the markup ships with. chatbot.js removes `hidden` only when the
+   browser actually exposes the Web Speech API. */
+.mic-btn[hidden] {
+    display: none;
+}
+
+.mic-btn svg {
+    width: 16px;
+    height: 16px;
+    stroke: #aaa;
+    transition: stroke 0.2s ease;
+}
+
+.mic-btn:hover:not(.recording) {
+    background: #dcdcdc;
+}
+
+.mic-btn.recording {
+    background: #c62828;
+    border-color: #8e0000;
+    animation: micPulse 1.4s ease-in-out infinite;
+}
+
+.mic-btn.recording svg {
+    stroke: #fff;
+}
+
+.mic-btn:focus-visible {
+    border-color: var(--brand-primary);
+    box-shadow: 0 0 0 2px rgba(var(--brand-primary-rgb), 0.35);
+}
+
+@keyframes micPulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(198, 40, 40, 0.55); }
+    50%      { box-shadow: 0 0 0 7px rgba(198, 40, 40, 0); }
+}
+
+/* A pulsing red button is exactly the kind of motion that triggers vestibular
+   discomfort, and it is decorative — the aria-pressed state and the status line
+   both still convey that recording is live. */
+@media (prefers-reduced-motion: reduce) {
+    .mic-btn.recording {
+        animation: none;
+    }
+}
+
+/* Shares the disclaimer's slot rather than claiming its own row: the gap
+   between .chat-input (bottom:22px) and .chat-disclaimer (bottom:6px) is only
+   16px, so a third absolutely-positioned line would collide. chatbot.js adds
+   .voice-speaking to .chatbot while a message is showing, which hides the
+   disclaimer for the duration. */
+.voice-status {
+    position: absolute;
+    bottom: 6px;
+    left: 10px;
+    right: 10px;
+    text-align: center;
+    font-family: 'Tajawal', sans-serif;
+    font-size: 0.7rem;
+    color: var(--brand-primary);
+    pointer-events: none;
+    z-index: 11;
+}
+
+.voice-status:empty {
+    display: none;
+}
+
+.voice-status.is-error {
+    color: #c62828;
+}
+
+.chatbot.voice-speaking .chat-disclaimer {
+    visibility: hidden;
+}
+
+
+/* ---------------------------------------------------------------------------
+   Guided workflows
+
+   The launcher chips, the progress banner, and the in-bubble answer buttons.
+   These adapt the .enrollment-banner and .schedule-call-msg rules that were
+   already in this file but referenced by nothing — same shapes, brand-driven
+   colors, new names.
+   --------------------------------------------------------------------------- */
+
+/* Launcher chips on the welcome screen. Empty when no workflows are
+   configured, and :empty keeps it from reserving space in that case. */
+.welcome-workflows {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    margin-top: 18px;
+    width: 100%;
+}
+
+.welcome-workflows:empty {
+    display: none;
+}
+
+.welcome-workflows-heading {
+    font-family: 'Tajawal', sans-serif;
+    font-size: 0.82rem;
+    color: #6b7280;
+    margin: 0;
+}
+
+.workflow-chip {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    border: 1.5px solid rgba(var(--brand-primary-rgb), 0.35);
+    background: rgba(var(--brand-primary-rgb), 0.06);
+    color: var(--brand-primary-dark, var(--brand-primary));
+    border-radius: 12px;
+    padding: 9px 14px;
+    cursor: pointer;
+    font-family: 'Tajawal', sans-serif;
+    text-align: left;
+    max-width: 100%;
+    transition: background 0.2s, border-color 0.2s, transform 0.1s;
+}
+
+.workflow-chip:hover {
+    background: rgba(var(--brand-primary-rgb), 0.13);
+    border-color: var(--brand-primary);
+}
+
+.workflow-chip:active {
+    transform: scale(0.985);
+}
+
+.workflow-chip-title {
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+.workflow-chip-meta {
+    font-size: 0.76rem;
+    opacity: 0.75;
+    font-weight: 400;
+}
+
+/* Progress banner, shown only while a workflow is running. Same slot and
+   shape as the contact banner directly above it. */
+.workflow-banner {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 16px;
+    background: rgba(var(--brand-primary-rgb), 0.10);
+    border-bottom: 1px solid rgba(var(--brand-primary-rgb), 0.25);
+    flex-shrink: 0;
+    font-family: 'Tajawal', sans-serif;
+    font-size: 0.84rem;
+    color: var(--brand-primary-dark, var(--brand-primary));
+}
+
+.workflow-banner[hidden] {
+    display: none;
+}
+
+.workflow-banner-text {
+    flex: 1;
+    font-weight: 500;
+}
+
+.workflow-banner-btn {
+    border: none;
+    padding: 5px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-family: 'Tajawal', sans-serif;
+    font-size: 0.78rem;
+    font-weight: 600;
+    background: var(--brand-primary);
+    color: #fff;
+    white-space: nowrap;
+    flex-shrink: 0;
+    transition: background 0.2s, transform 0.1s;
+}
+
+.workflow-banner-btn:hover {
+    background: var(--brand-primary-dark);
+}
+
+.workflow-banner-btn:active {
+    transform: scale(0.97);
+}
+
+/* Answer buttons under a question bubble (choices, "Skip", "I don't know"). */
+.workflow-choices {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 2px 0 10px 44px;
+    max-width: 85%;
+}
+
+.workflow-choice-btn {
+    border: 1.5px solid rgba(var(--brand-primary-rgb), 0.35);
+    background: #fff;
+    color: var(--brand-primary-dark, var(--brand-primary));
+    padding: 6px 13px;
+    border-radius: 14px;
+    cursor: pointer;
+    font-family: 'Tajawal', sans-serif;
+    font-size: 0.84rem;
+    font-weight: 500;
+    transition: background 0.2s, transform 0.1s, opacity 0.2s;
+}
+
+.workflow-choice-btn:hover:not(:disabled) {
+    background: rgba(var(--brand-primary-rgb), 0.10);
+}
+
+.workflow-choice-btn:active:not(:disabled) {
+    transform: scale(0.97);
+}
+
+/* Answering retires the whole group — the question has moved on, and a second
+   click would submit an answer to a question no longer being asked. */
+.workflow-choice-btn:disabled {
+    opacity: 0.45;
+    cursor: default;
+}
+
+/* The finished document, rendered as a card in the transcript. */
+.workflow-doc {
+    margin: 6px 0 14px 44px;
+    max-width: 85%;
+    border: 1px solid #dcdcdc;
+    border-radius: 12px;
+    background: #fafafa;
+    overflow: hidden;
+}
+
+.workflow-doc-body {
+    padding: 12px 14px;
+    max-height: 260px;
+    overflow-y: auto;
+    font-family: 'Tajawal', sans-serif;
+    font-size: 0.84rem;
+    line-height: 1.5;
+    color: #222;
+    word-break: break-word;
+}
+
+.workflow-doc-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 8px 12px;
+    border-top: 1px solid #e6e6e6;
+    background: #f2f2f2;
 }

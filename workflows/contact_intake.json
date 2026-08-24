@@ -1,0 +1,70 @@
+{
+  "schema_version": 1,
+  "id": "contact_intake",
+  "title": "Get in touch",
+  "description": "A few quick questions so we can route your enquiry to the right person.",
+  "estimated_minutes": 3,
+
+  "intro": "Happy to help. I'll ask a few short questions, one at a time — it takes about three minutes. You can say \"skip\" to any of them, or \"stop\" to pause and come back later.",
+
+  "conduct": [
+    "Be warm and brief. Ask one question at a time.",
+    "Never pressure the participant for a detail they would rather not give.",
+    "It is always fine for someone to skip a question or say they don't know."
+  ],
+  "scope_guard": "If the participant raises something outside this form, acknowledge it in one sentence and steer gently back to the current question.",
+
+  "max_follow_ups": 1,
+  "allow_skip_default": true,
+
+  "sections": [
+    {
+      "id": "about_you",
+      "title": "About you",
+      "recap": "none",
+      "questions": [
+        {
+          "id": "name",
+          "prompt": "What name should we use when we reply?",
+          "expects": "text",
+          "required": true,
+          "capture": ["value"],
+          "sufficiency_criteria": "Sufficient as soon as any name is given."
+        },
+        {
+          "id": "contact",
+          "prompt": "What's the best email address to reach you on?",
+          "guidance": "An email address is enough; don't ask for a phone number.",
+          "expects": "text",
+          "required": true,
+          "capture": ["value"],
+          "sufficiency_criteria": "Sufficient when something that looks like an email address is given."
+        }
+      ]
+    },
+    {
+      "id": "enquiry",
+      "title": "Your enquiry",
+      "recap": "none",
+      "questions": [
+        {
+          "id": "topic",
+          "prompt": "What's your enquiry about?",
+          "guidance": "A sentence or two is plenty. If it's very vague, ask once for a little more.",
+          "expects": "text",
+          "required": true,
+          "capture": ["value"],
+          "sufficiency_criteria": "Sufficient when the subject of the enquiry is identifiable."
+        }
+      ]
+    }
+  ],
+
+  "output_template": {
+    "format": "markdown",
+    "filename": "contact-intake-{{about_you.name}}-{date}.md",
+    "unknown_placeholder": "not provided",
+    "uncovered_placeholder": "not reached",
+    "body": "# Contact enquiry\n\n- **Name:** {{about_you.name}}\n- **Email:** {{about_you.contact}}\n\n## Enquiry\n\n{{enquiry.topic}}\n"
+  }
+}

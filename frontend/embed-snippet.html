@@ -26,11 +26,15 @@
   }
 </style>
 
+<!-- `microphone` in `allow` is required for voice input: the widget runs in a
+     cross-origin iframe, and browsers block speech recognition inside one
+     unless the embedding page delegates the permission. Remove it only if you
+     do not want dictation. -->
 <iframe id="site-chatbot-iframe"
     src="https://YOUR-CHATBOT-HOST.example/chatbot_iframe.html"
     title="Site Chatbot"
     loading="lazy"
-    allow="clipboard-write">
+    allow="clipboard-write; microphone">
 </iframe>
 
 <script>

@@ -25,9 +25,14 @@ Browser iframe  →  chatbot.js  →  Flask /chat
                                →  faithfulness judge (async) audits answers
 ```
 
-Every model call — chat, analysis, faithfulness judging, and the embeddings
-behind the vector search — goes to OpenRouter through `llm_client.py`. One
-provider, one API key.
+Guided workflows take a separate path — `/api/workflow/*` rather than `/chat` —
+so a questionnaire answer is never spam-checked, retrieved against, logged to
+the analytics collection, or scored for faithfulness. Voice input never reaches
+the server at all: the browser transcribes it.
+
+Every model call — chat, analysis, faithfulness judging, guided-workflow answer
+judging, and the embeddings behind the vector search — goes to OpenRouter
+through `llm_client.py`. One provider, one API key.
 
 **Key modules:**
 
@@ -42,6 +47,11 @@ provider, one API key.
 | `Database/create_db.py` | Full knowledge-base rebuild with validation gate |
 | `Database/update_db.py` | Incremental per-URL refresh |
 | `llm_client.py` | Single provider seam — every LLM + embedding call, all via OpenRouter |
+| `agent_chatbot/workflow_engine.py` | Guided-questionnaire state machine (deterministic; the LLM only judges answers) |
+| `agent_chatbot/workflow_specs.py` | Workflow spec loading and validation |
+| `workflows/` | **Edit me** — one JSON file per guided questionnaire |
+| `frontend/voice_input.js` | Browser-native speech-to-text for the chat widget |
+| `frontend/workflow_client.js` | Client half of the guided-workflow turn loop |
 | `frontend/chatbot_iframe.html` | Embeddable iframe shell |
 | `dashboard.html` | Analytics dashboard (deployable as a static site) |
 
@@ -97,6 +107,8 @@ works exactly as well as a school name.
 | `CUSTOM_PROMPT_RULES` | Rules specific to your organization, prepended to the system prompt |
 | `DESIGNED_BY` | Credit line when users ask who built the bot (`""` to omit) |
 | `GREETING_MESSAGE` / `DEFERRAL_MESSAGE` / … | Canned responses (single source of truth — the dashboard classifies unanswered questions by matching `DEFERRAL_MESSAGE`) |
+| `WORKFLOWS_ENABLED` / `WORKFLOWS_DIR` | Guided questionnaires — see [`workflows/README.md`](workflows/README.md) |
+| `WORKFLOW_RESPONSES_DIR` | Where completed questionnaire responses are written |
 
 ### `frontend/site_config.js` (chat widget)
 
@@ -107,6 +119,9 @@ works exactly as well as a school name.
 | `apiBase` | Chat server origin (`""` = same origin) |
 | `storagePrefix` | localStorage namespace |
 | `welcomeTranslations` | Welcome text in all 7 languages |
+| `speechLangs` | BCP-47 tag per language for voice input |
+| `voiceTranslations` | Microphone button labels and error messages |
+| `workflowTranslations` | Guided-workflow button labels and progress format |
 
 ### `frontend/chatbot.css` (branding)
 
@@ -122,6 +137,64 @@ on your site (verified with the Blackbaud CMS; any CMS that accepts raw HTML
 works). Point its iframe `src` at wherever you host `chatbot_iframe.html` —
 the Flask server serves it at `/chatbot_iframe.html`, or host the `frontend/`
 folder on any static host.
+
+## Voice input
+
+The widget has a microphone button next to the composer. Speech is transcribed
+by the browser's own Web Speech API — no server round trip, no second provider,
+no extra API key, and nothing to configure. Dictated text lands in the input box
+for the user to check and correct before sending, because recognition mishears
+often enough that auto-sending would ship errors nobody got to catch.
+
+| Browser | Support |
+|---|---|
+| Chrome (desktop, Android), Edge | Yes |
+| Safari (macOS, iOS 14.5+) | Yes |
+| Firefox | No Web Speech API — the button is never rendered, typing is unaffected |
+
+Recognition follows the widget's language selector, mapped to BCP-47 tags in
+`frontend/site_config.js` (`speechLangs`). Adjust the regional variants there —
+`pt-PT` vs `pt-BR`, `ar-SA` vs `ar-EG` — to match your audience.
+
+**If you embed the widget, re-paste `frontend/embed-snippet.html`.** The iframe
+needs `allow="clipboard-write; microphone"`; browsers block speech recognition
+in a cross-origin iframe unless the embedding page delegates the permission, and
+the failure is silent until someone taps the mic on your live site.
+
+Privacy: Chrome sends the audio to Google's servers for recognition; Safari
+recognizes on-device. Neither path touches your backend. The widget discloses
+this once, the first time a visitor starts dictation.
+
+## Guided workflows
+
+The bot can also *ask* the questions. A workflow is a questionnaire it walks a
+visitor through — sections asked one at a time, follow-ups when an answer is
+vague or an unsupported number, skip and "don't know" always available, pause
+and resume across sittings, and a filled-in document at the end with Copy,
+Download and Email buttons.
+
+Each one is a single JSON file in `workflows/`. Two ship with the repo: a short
+`contact_intake` and a full `process_interview`. Delete them, edit them, or add
+your own — **[`workflows/README.md`](workflows/README.md) documents the format**.
+
+Sequencing is deterministic Python; the model is called at most once per answer,
+to judge sufficiency and normalize the answer into typed fields. The final
+document is then pure string substitution, which is what makes "never invent a
+number" structurally true rather than a request in a prompt — a value can only
+appear if the participant actually said it. A model outage cannot strand anyone
+mid-interview: an unparseable judgement accepts the answer and moves on.
+
+Workflow state lives in the visitor's browser and travels with each request, so
+the server stays stateless and multi-worker safe.
+
+Completed responses are written to `WORKFLOW_RESPONSES_DIR` (default
+`workflow_responses/`, gitignored) and can be emailed using the existing SMTP
+config. There is deliberately no HTTP route that reads them back: they can
+contain personal details and the dashboard API has no authentication.
+
+Set `WORKFLOWS_ENABLED = False` in `site_config.py` to hide the feature. With no
+specs configured the launcher renders nothing, so the widget looks exactly as it
+did before.
 
 ## Dashboard
 
@@ -193,8 +266,8 @@ through `llm_client.py`, so switching providers is a one-file change.
 ## Testing
 
 ```bash
-pytest tests/                                  # 261 tests, no network needed
-node --test tests/frontend/test_chat_history_store.mjs
+pytest tests/                                  # 496 tests, no network needed
+node --test 'tests/frontend/test_*.mjs'        # 70 widget tests
 ```
 
 Tests assert against the shipped Example Site config; if you change

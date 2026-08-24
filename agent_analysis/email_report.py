@@ -57,26 +57,85 @@ def build_html_email(md_text: str, report_date: str) -> str:
 </html>"""
 
 
-def send_daily_report():
-    load_dotenv()
-
-    sender_email = os.environ.get("SENDER_EMAIL")
-    sender_password = os.environ.get("SENDER_PASSWORD")
+def resolve_recipients():
+    """RECIPIENT_EMAIL parsed into a deduped list, preserving order."""
     recipient_env = os.environ.get("RECIPIENT_EMAIL", "")
-    smtp_server = os.environ.get("SMTP_SERVER", "smtp.gmail.com")
-    smtp_port = int(os.environ.get("SMTP_PORT", 587))
-
-    # Build the recipient list from RECIPIENT_EMAIL (comma-separated), deduped.
-    env_recipients = [e.strip() for e in recipient_env.split(",") if e.strip()]
     seen = set()
     recipients = []
-    for addr in env_recipients:
+    for addr in [e.strip() for e in recipient_env.split(",") if e.strip()]:
         key = addr.lower()
         if key not in seen:
             seen.add(key)
             recipients.append(addr)
+    return recipients
+
+
+def email_configured():
+    """True when SENDER_EMAIL, SENDER_PASSWORD and a recipient are all present.
+
+    Callers use this to offer emailing only when it can actually work, rather
+    than failing at send time.
+    """
+    return bool(
+        os.environ.get("SENDER_EMAIL")
+        and os.environ.get("SENDER_PASSWORD")
+        and resolve_recipients()
+    )
+
+
+def send_markdown_email(subject, md_text, heading=None):
+    """Send a markdown document as a plain-text + HTML email.
+
+    Shared by the weekly analysis report and by completed guided-workflow
+    responses. Returns True on success; prints and returns False on any
+    misconfiguration or SMTP failure, so a caller in a request path never
+    raises because mail is down.
+    """
+    load_dotenv()
+    sender_email = os.environ.get("SENDER_EMAIL")
+    sender_password = os.environ.get("SENDER_PASSWORD")
+    smtp_server = os.environ.get("SMTP_SERVER", "smtp.gmail.com")
+    smtp_port = int(os.environ.get("SMTP_PORT", 587))
+    recipients = resolve_recipients()
 
     if not all([sender_email, sender_password, recipients]):
+        print("Error: Missing email configuration.")
+        print("Please ensure SENDER_EMAIL, SENDER_PASSWORD, and RECIPIENT_EMAIL are set in your .env file.")
+        return False
+
+    heading = heading or datetime.datetime.now().strftime("%B %d, %Y")
+    html_body = build_html_email(md_text, heading)
+
+    msg = MIMEMultipart("alternative")
+    msg["From"] = sender_email
+    msg["To"] = ", ".join(recipients)
+    msg["Subject"] = subject
+    msg.attach(MIMEText(md_text, "plain", "utf-8"))
+    msg.attach(MIMEText(html_body, "html", "utf-8"))
+
+    try:
+        server = smtplib.SMTP(smtp_server, smtp_port)
+        server.ehlo()
+        server.starttls()
+        server.ehlo()
+        server.login(sender_email, sender_password)
+        server.sendmail(sender_email, recipients, msg.as_string())
+        server.quit()
+        print("Email sent successfully!")
+        return True
+    except smtplib.SMTPAuthenticationError as e:
+        print(f"Auth failed: {e}")
+        return False
+    except Exception as e:
+        print(f"Failed to send: {e}")
+        return False
+
+
+def send_daily_report():
+    load_dotenv()
+
+    recipients = resolve_recipients()
+    if not email_configured():
         print("Error: Missing email configuration.")
         print("Please ensure SENDER_EMAIL, SENDER_PASSWORD, and RECIPIENT_EMAIL are set in your .env file.")
         return
@@ -103,29 +162,7 @@ def send_daily_report():
         return
 
     report_date = datetime.datetime.now().strftime("%B %d, %Y")
-    html_body = build_html_email(md_text, report_date)
-
-    msg = MIMEMultipart("alternative")
-    msg["From"] = sender_email
-    msg["To"] = ", ".join(recipients)
-    msg["Subject"] = f"Weekly Analysis Report - {report_date}"
-
-    msg.attach(MIMEText(md_text, "plain", "utf-8"))
-    msg.attach(MIMEText(html_body, "html", "utf-8"))
-
-    try:
-        server = smtplib.SMTP(smtp_server, smtp_port)
-        server.ehlo()
-        server.starttls()
-        server.ehlo()
-        server.login(sender_email, sender_password)
-        server.sendmail(sender_email, recipients, msg.as_string())
-        server.quit()
-        print("Email sent successfully!")
-    except smtplib.SMTPAuthenticationError as e:
-        print(f"Auth failed: {e}")
-    except Exception as e:
-        print(f"Failed to send: {e}")
+    send_markdown_email(f"Weekly Analysis Report - {report_date}", md_text, report_date)
 
 
 if __name__ == "__main__":

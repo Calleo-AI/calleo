@@ -35,6 +35,13 @@ from site_config import (
 )
 from faithfulness_scorer import score_faithfulness_async
 import dashboard_data
+import workflow_specs
+import workflow_engine
+# The whole module, not just names: the workflow routes read config values that
+# a test may monkeypatch, and `from x import y` would freeze them at import.
+import site_config as site_config_module
+# Reused by /api/workflow/submit to email a completed response.
+import email_report
 
 
 
@@ -126,6 +133,12 @@ limiter = Limiter(
 
 @app.errorhandler(429)
 def ratelimit_handler(e):
+    # /chat's widget renders whatever comes back as a chat bubble, so a rate
+    # limit there is deliberately a 200 carrying a human-readable message.
+    # The workflow client parses a typed envelope instead and needs the real
+    # status code to distinguish throttling from a bad request.
+    if request.path.startswith("/api/workflow"):
+        return jsonify({"error": "rate_limited", "retry_after": 60}), 429
     return jsonify({"response": "You have sent too many messages recently. Please wait a minute before trying again."}), 200
 
 # --- Health Check Endpoint ---
@@ -147,45 +160,36 @@ def health_check():
 # --- END Health Check ---
 
 # --- Serve chatbot widget files ---
-@app.route('/chatbot.css', methods=['GET'])
-def serve_chatbot_css():
+# One handler over an explicit allowlist rather than a route per file: the
+# widget gained two more assets (voice input, workflow client) and copy-pasting
+# a five-line send_file block each time is how a directory-traversal hole gets
+# introduced. The allowlist means an arbitrary path can never be served, and the
+# URLs are unchanged so anything already embedded in the wild keeps working.
+_FRONTEND_FILES = {
+    "chatbot.css",
+    "chatbot.js",
+    "site_config.js",
+    "chat_history_store.js",
+    "voice_input.js",
+    "workflow_client.js",
+    "chatbot_iframe.html",
+}
+
+
+def _serve_frontend(filename):
+    if filename not in _FRONTEND_FILES:
+        return "File not found", 404
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    css_path = os.path.join(base_dir, 'frontend', 'chatbot.css')
-    if os.path.exists(css_path):
-        return send_file(css_path)
+    path = os.path.join(base_dir, "frontend", filename)
+    if os.path.exists(path):
+        return send_file(path)
     return "File not found", 404
 
-@app.route('/chatbot.js', methods=['GET'])
-def serve_chatbot_js():
-    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    js_path = os.path.join(base_dir, 'frontend', 'chatbot.js')
-    if os.path.exists(js_path):
-        return send_file(js_path)
-    return "File not found", 404
 
-@app.route('/site_config.js', methods=['GET'])
-def serve_site_config_js():
-    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    js_path = os.path.join(base_dir, 'frontend', 'site_config.js')
-    if os.path.exists(js_path):
-        return send_file(js_path)
-    return "File not found", 404
+@app.route("/<path:filename>", methods=["GET"])
+def serve_frontend_file(filename):
+    return _serve_frontend(filename)
 
-@app.route('/chat_history_store.js', methods=['GET'])
-def serve_chat_history_store_js():
-    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    js_path = os.path.join(base_dir, 'frontend', 'chat_history_store.js')
-    if os.path.exists(js_path):
-        return send_file(js_path)
-    return "File not found", 404
-
-@app.route('/chatbot_iframe.html', methods=['GET'])
-def serve_chatbot_iframe():
-    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    iframe_path = os.path.join(base_dir, 'frontend', 'chatbot_iframe.html')
-    if os.path.exists(iframe_path):
-        return send_file(iframe_path)
-    return "File not found", 404
 
 # --- Homepage Route ---
 @app.route('/', methods=['GET'])
@@ -507,6 +511,188 @@ def generate_title_endpoint():
         title = _fallback_title(message)
 
     return jsonify({"title": title}), 200
+
+
+# --- Guided workflows -------------------------------------------------------
+# A workflow is a questionnaire the assistant walks a visitor through, defined
+# by a JSON spec in workflows/. See agent_chatbot/workflow_engine.py.
+#
+# These are deliberately NOT part of /chat, for three concrete reasons:
+#   * check_spam would fire on ordinary answers. is_gibberish("~40% / 60% (+-5)")
+#     is 0.35 alphanumeric and reads as gibberish; and the duplicate rule blocks
+#     the third identical "I don't know", which in an interview is normal.
+#   * Retrieval and the faithfulness judge are meaningless here — a workflow
+#     turn has no retrieved chunks to be faithful to.
+#   * Workflow turns must stay out of full_database_conversations, which
+#     dashboard_data reads unfiltered; bot-asked questions would skew every
+#     metric, and each add() also costs an embedding call.
+# Being separate routes means none of that is a conditional — it simply is not
+# reached.
+
+_workflow_registry_loaded = False
+
+
+def _ensure_workflows():
+    """Load specs on first use. Failure here must never break the server."""
+    global _workflow_registry_loaded
+    if not _workflow_registry_loaded:
+        try:
+            workflow_specs.load_all()
+        except Exception as exc:
+            print(f"[workflows] failed to load specs: {exc}")
+        _workflow_registry_loaded = True
+    return getattr(site_config_module, "WORKFLOWS_ENABLED", True)
+
+
+def _workflow_or_error(workflow_id):
+    """Resolve a workflow id to its registry entry, or an error response."""
+    if not _ensure_workflows():
+        return None, (jsonify({"error": "workflows_disabled"}), 503)
+    entry = workflow_specs.get(workflow_id)
+    if entry is None:
+        return None, (jsonify({"error": "unknown_workflow"}), 404)
+    return entry, None
+
+
+@app.route('/api/workflows', methods=['GET'])
+@limiter.limit("30 per minute")
+def workflows_list():
+    if not _ensure_workflows():
+        return jsonify({"workflows": []}), 200
+    return jsonify({"workflows": workflow_specs.summaries()}), 200
+
+
+@app.route('/api/workflow/start', methods=['POST'])
+@limiter.limit("10 per minute")
+def workflow_start():
+    data = request.get_json(silent=True) or {}
+    entry, error = _workflow_or_error(data.get("workflow_id"))
+    if error:
+        return error
+    language = data.get("language") or "English"
+    try:
+        # Zero LLM calls: opening a workflow is instant.
+        return jsonify(workflow_engine.start(entry["spec"], entry["hash"], language)), 200
+    except Exception as exc:
+        print(f"[workflows] start failed: {exc}")
+        return jsonify({"error": "workflow_error"}), 500
+
+
+@app.route('/api/workflow/turn', methods=['POST'])
+@limiter.limit("30 per minute")
+def workflow_turn():
+    data = request.get_json(silent=True) or {}
+    entry, error = _workflow_or_error(data.get("workflow_id"))
+    if error:
+        return error
+
+    message = data.get("message")
+    if not isinstance(message, str) or not message.strip():
+        return jsonify({"error": "message required"}), 400
+
+    spec, spec_hash = entry["spec"], entry["hash"]
+    try:
+        state = workflow_engine.validate_state(spec, spec_hash, data.get("state"))
+    except workflow_engine.WorkflowSpecChanged as changed:
+        # The spec was edited mid-run. Keep the answers that still apply and
+        # resume from the first unanswered question rather than losing the lot.
+        migrated = changed.migrated_state
+        payload = workflow_engine.resume_turn(
+            spec, migrated, site_config_module.WORKFLOW_SPEC_CHANGED_MESSAGE)
+        return jsonify(payload), 409
+    except workflow_engine.WorkflowStateError as exc:
+        reason = str(exc)
+        status = 413 if reason == "state_too_large" else 400
+        return jsonify({"error": reason}), status
+
+    try:
+        return jsonify(workflow_engine.handle_turn(spec, spec_hash, state, message)), 200
+    except Exception as exc:
+        print(f"[workflows] turn failed: {exc}")
+        # Hand back the unchanged state so the run is recoverable rather than lost.
+        return jsonify(workflow_engine.resume_turn(
+            spec, state, site_config_module.WORKFLOW_ERROR_MESSAGE)), 200
+
+
+@app.route('/api/workflow/document', methods=['POST'])
+@limiter.limit("10 per minute")
+def workflow_document():
+    """Render the document from whatever has been answered so far.
+
+    Deterministic and LLM-free, so it doubles as "give me what you have" mid-run
+    and as a re-download after finishing.
+    """
+    data = request.get_json(silent=True) or {}
+    entry, error = _workflow_or_error(data.get("workflow_id"))
+    if error:
+        return error
+    try:
+        state = workflow_engine.validate_state(entry["spec"], entry["hash"], data.get("state"))
+    except workflow_engine.WorkflowSpecChanged as changed:
+        state = changed.migrated_state
+    except workflow_engine.WorkflowStateError as exc:
+        reason = str(exc)
+        return jsonify({"error": reason}), 413 if reason == "state_too_large" else 400
+    return jsonify({"document": workflow_engine.render_document(entry["spec"], state)}), 200
+
+
+def _responses_dir():
+    configured = os.environ.get("WORKFLOW_RESPONSES_DIR") or getattr(
+        site_config_module, "WORKFLOW_RESPONSES_DIR", "workflow_responses"
+    )
+    if os.path.isabs(configured):
+        return configured
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    return os.path.join(base_dir, configured)
+
+
+@app.route('/api/workflow/submit', methods=['POST'])
+@limiter.limit("5 per hour")
+def workflow_submit():
+    """Save a completed response to disk, and email it when SMTP is configured.
+
+    Tightly limited because it writes files and can send mail. There is
+    deliberately no route that reads these back: responses can contain personal
+    details and the dashboard API has no authentication.
+    """
+    data = request.get_json(silent=True) or {}
+    entry, error = _workflow_or_error(data.get("workflow_id"))
+    if error:
+        return error
+
+    spec = entry["spec"]
+    try:
+        state = workflow_engine.validate_state(spec, entry["hash"], data.get("state"))
+    except workflow_engine.WorkflowSpecChanged as changed:
+        state = changed.migrated_state
+    except workflow_engine.WorkflowStateError as exc:
+        reason = str(exc)
+        return jsonify({"error": reason}), 413 if reason == "state_too_large" else 400
+
+    document = workflow_engine.render_document(spec, state)
+    saved = False
+    try:
+        directory = _responses_dir()
+        os.makedirs(directory, exist_ok=True)
+        # render_document already sanitized the filename to [A-Za-z0-9_-].md;
+        # basename is a second belt against anything that slipped through.
+        target = os.path.join(directory, os.path.basename(document["filename"]))
+        with open(target, "w", encoding="utf-8") as handle:
+            handle.write(document["body"])
+        saved = True
+        print(f"[workflows] saved response: {target}")
+    except OSError as exc:
+        print(f"[workflows] could not save response: {exc}")
+
+    emailed = False
+    if data.get("email"):
+        try:
+            subject = site_config_module.WORKFLOW_EMAIL_SUBJECT.format(title=spec["title"])
+            emailed = email_report.send_markdown_email(subject, document["body"], spec["title"])
+        except Exception as exc:
+            print(f"[workflows] could not email response: {exc}")
+
+    return jsonify({"saved": saved, "emailed": emailed, "filename": document["filename"]}), 200
 
 
 @app.route('/api/dashboard', methods=['GET'])
