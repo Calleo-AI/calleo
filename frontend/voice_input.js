@@ -15,6 +15,11 @@
 // Firefox ships no implementation, so `isSupported()` returns false there and
 // the caller simply never renders a mic button.
 //
+// It also returns false on an insecure origin (plain http:// to a host that is
+// not localhost). Browsers gate microphone access on a secure context, so a
+// deployment reachable only over http:// cannot dictate no matter what the
+// page does — better to not offer the button than to offer one that is refused.
+//
 // Privacy note worth surfacing to users: Chrome streams the audio to Google's
 // servers for recognition. Safari recognizes on-device. Neither path involves
 // this project's backend.
@@ -44,7 +49,17 @@ const VoiceInput = (() => {
     const getRecognitionCtor = () =>
         window.SpeechRecognition || window.webkitSpeechRecognition || null;
 
-    const isSupported = () => Boolean(getRecognitionCtor());
+    // Chrome DEFINES webkitSpeechRecognition on an insecure origin but refuses
+    // to run it, failing with "not-allowed" the moment start() is called. So
+    // the constructor alone cannot decide whether to offer a mic button: on a
+    // plain-http:// deployment that check passes and every click is rejected by
+    // the browser, which reads to the user as a broken feature rather than an
+    // unavailable one. isSecureContext is true for https://, localhost and
+    // 127.0.0.1; it is undefined in a bare `window` (Node tests), where the
+    // strict comparison leaves support decided by the constructor alone.
+    const isSecureOrigin = () => window.isSecureContext !== false;
+
+    const isSupported = () => Boolean(getRecognitionCtor()) && isSecureOrigin();
 
     const speechLangFor = (languageName) => {
         const map = (window.SITE_CONFIG && window.SITE_CONFIG.speechLangs) || {};
@@ -63,8 +78,11 @@ const VoiceInput = (() => {
      *   onEnd()          — recognition stopped, for any reason
      */
     const create = (opts) => {
+        // isSupported(), not just the constructor: an insecure origin has one
+        // and rejects every start(), so building a recognizer there would hand
+        // the caller an object that can only ever fail.
+        if (!isSupported()) return null;
         const Ctor = getRecognitionCtor();
-        if (!Ctor) return null;
 
         const options = opts || {};
         const onInterim = options.onInterim || (() => {});
@@ -157,7 +175,7 @@ const VoiceInput = (() => {
         };
     };
 
-    return { isSupported, create, speechLangFor, errorKeyFor, DEFAULT_SPEECH_LANG };
+    return { isSupported, isSecureOrigin, create, speechLangFor, errorKeyFor, DEFAULT_SPEECH_LANG };
 })();
 
 window.VoiceInput = VoiceInput;

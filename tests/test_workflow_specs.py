@@ -273,9 +273,14 @@ class TestLoading:
         (tmp_path / "good.json").write_text(json.dumps(load_fixture()), encoding="utf-8")
         assert list(workflow_specs.load_all(str(tmp_path))) == ["fixture_full"]
 
-    def test_workflows_dir_env_override(self, monkeypatch):
-        monkeypatch.setenv("WORKFLOWS_DIR", "/tmp/some/where")
-        assert workflow_specs.workflows_dir() == "/tmp/some/where"
+    def test_workflows_dir_env_override(self, monkeypatch, tmp_path):
+        # tmp_path rather than a hardcoded "/tmp/..." so the absolute-path
+        # branch is actually taken on Windows too, where os.path.isabs
+        # ("/tmp/x") is False: the value fell through to the relative branch and
+        # os.path.join swapped in the drive, so this compared two different
+        # paths instead of exercising the override.
+        monkeypatch.setenv("WORKFLOWS_DIR", str(tmp_path))
+        assert workflow_specs.workflows_dir() == str(tmp_path)
 
     def test_workflows_dir_relative_resolves_against_repo_root(self, monkeypatch):
         monkeypatch.delenv("WORKFLOWS_DIR", raising=False)

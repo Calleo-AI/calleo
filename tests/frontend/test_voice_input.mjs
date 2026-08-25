@@ -100,6 +100,49 @@ test("the webkit-prefixed constructor is accepted too (Safari)", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Secure context
+//
+// Chrome defines webkitSpeechRecognition on an insecure origin but rejects
+// every start() with "not-allowed". A constructor-only check therefore reveals
+// a mic button on a plain-http:// deployment that can never work, which is how
+// this surfaced: the TKEthics VM is reachable over http:// on a bare IP.
+// ---------------------------------------------------------------------------
+
+test("isSupported is false on an insecure origin even with a constructor", () => {
+    withSpeechSupport(VoiceInput => {
+        globalThis.window.isSecureContext = false;
+        assert.equal(VoiceInput.isSupported(), false);
+        delete globalThis.window.isSecureContext;
+    });
+});
+
+test("isSupported is true on a secure origin", () => {
+    withSpeechSupport(VoiceInput => {
+        globalThis.window.isSecureContext = true;
+        assert.equal(VoiceInput.isSupported(), true);
+        delete globalThis.window.isSecureContext;
+    });
+});
+
+test("an absent isSecureContext does not suppress support", () => {
+    // A bare `window` (these tests, and any embedder that stubs one) has no
+    // isSecureContext; that must not read as "insecure".
+    withSpeechSupport(VoiceInput => {
+        assert.equal("isSecureContext" in globalThis.window, false);
+        assert.equal(VoiceInput.isSecureOrigin(), true);
+        assert.equal(VoiceInput.isSupported(), true);
+    });
+});
+
+test("create returns null on an insecure origin", () => {
+    withSpeechSupport(VoiceInput => {
+        globalThis.window.isSecureContext = false;
+        assert.equal(VoiceInput.create({}), null);
+        delete globalThis.window.isSecureContext;
+    });
+});
+
+// ---------------------------------------------------------------------------
 // Language mapping
 // ---------------------------------------------------------------------------
 

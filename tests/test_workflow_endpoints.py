@@ -353,8 +353,14 @@ class TestSubmit:
         assert "/" not in written[0] and ".." not in written[0]
 
     def test_an_unwritable_directory_reports_saved_false_rather_than_500(
-            self, client, monkeypatch):
-        monkeypatch.setenv("WORKFLOW_RESPONSES_DIR", "/proc/nope/cannot-write")
+            self, client, monkeypatch, tmp_path):
+        # A file where a directory must go: os.makedirs then fails on every
+        # platform. The previous "/proc/nope/cannot-write" is simply creatable
+        # on Windows, so the write succeeded and this asserted the opposite of
+        # what it was checking.
+        blocker = tmp_path / "not-a-dir"
+        blocker.write_text("", encoding="utf-8")
+        monkeypatch.setenv("WORKFLOW_RESPONSES_DIR", str(blocker / "responses"))
         state = start_run(client)["state"]
         response = client.post("/api/workflow/submit",
                                json={"workflow_id": "fixture_full", "state": state})

@@ -152,6 +152,15 @@ often enough that auto-sending would ship errors nobody got to catch.
 | Safari (macOS, iOS 14.5+) | Yes |
 | Firefox | No Web Speech API — the button is never rendered, typing is unaffected |
 
+**Serve the widget over HTTPS.** Browsers only grant microphone access on a
+secure origin, so voice input is unavailable on a site served over plain
+`http://` — the mic button is deliberately not rendered there, exactly as on
+Firefox, rather than offering one that every click would reject. `localhost` and
+`127.0.0.1` count as secure, so local development works without a certificate;
+a staging box on a bare IP does not. This is a browser rule, not something the
+widget can opt out of, and it is the most common reason the feature appears to
+be missing after a deployment.
+
 Recognition follows the widget's language selector, mapped to BCP-47 tags in
 `frontend/site_config.js` (`speechLangs`). Adjust the regional variants there —
 `pt-PT` vs `pt-BR`, `ar-SA` vs `ar-EG` — to match your audience.
